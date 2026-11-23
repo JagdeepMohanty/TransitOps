@@ -26,10 +26,21 @@ export default function Button({
   fullWidth = false,
   leftIcon,
   rightIcon,
+  icon,
   className,
   disabled,
   ...props
 }) {
+  // Support either leftIcon, or icon passed as a component or JSX node
+  const resolvedLeftIcon = leftIcon || (
+    typeof icon === 'function' ? (
+      (() => {
+        const IconComp = icon
+        return <IconComp size={size === 'xs' || size === 'sm' ? 14 : 16} />
+      })()
+    ) : icon
+  )
+
   return (
     <button
       disabled={disabled || loading}
@@ -43,8 +54,8 @@ export default function Button({
     >
       {loading ? (
         <Loader2 size={14} className="animate-spin shrink-0" />
-      ) : leftIcon ? (
-        <span className="shrink-0 flex items-center">{leftIcon}</span>
+      ) : resolvedLeftIcon ? (
+        <span className="shrink-0 flex items-center">{resolvedLeftIcon}</span>
       ) : null}
 
       {children && <span className="leading-none">{children}</span>}

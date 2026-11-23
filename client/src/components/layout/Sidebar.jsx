@@ -32,7 +32,7 @@ export default function Sidebar({ collapsed, mobileOpen, onClose, onToggleCollap
   const { user } = useAuth()
   const name     = user?.name  ?? 'User'
   const email    = user?.email ?? ''
-  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const initials = (name || 'User').trim().split(/\s+/).map(n => n[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'U'
 
   return (
     <>

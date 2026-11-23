@@ -106,3 +106,25 @@ export const closeMaintenance = async (id, data) => {
   const [closedLog] = await prisma.$transaction(ops);
   return closedLog;
 };
+
+export const deleteMaintenance = async (id) => {
+  const log = await maintenanceRepo.findById(id);
+  if (!log) throw new ApiError(HTTP_STATUS.NOT_FOUND, MESSAGES.MAINTENANCE_NOT_FOUND);
+
+  const ops = [prisma.maintenance.delete({ where: { id } })];
+
+  if (log.status === MAINTENANCE_STATUS.ACTIVE) {
+    const vehicle = await vehicleRepo.findById(log.vehicleId);
+    if (vehicle && vehicle.status === VEHICLE_STATUS.IN_SHOP) {
+      ops.push(
+        prisma.vehicle.update({
+          where: { id: log.vehicleId },
+          data:  { status: VEHICLE_STATUS.AVAILABLE },
+        })
+      );
+    }
+  }
+
+  await prisma.$transaction(ops);
+  return { id };
+};

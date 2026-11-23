@@ -37,7 +37,7 @@ export default function Navbar({ onMenuClick }) {
   }
 
   const displayName = user?.name || 'User'
-  const initials    = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const initials    = displayName.trim().split(/\s+/).map(n => n[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'U'
   const roleName    = user?.role?.name ?? user?.role ?? ''
 
   return (

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Truck } from 'lucide-react';
+import { ArrowLeft, Save, Truck, AlertCircle } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import PageShell from '@components/layout/PageShell';
-import Button    from '@components/common/Button';
-import Input     from '@components/common/Input';
-import Select    from '@components/common/Select';
-import Spinner   from '@components/common/Spinner';
-import { vehiclesApi } from '@api/vehicles.api';
-import { VEHICLE_TYPES, VEHICLE_STATUSES } from '@utils/constants';
+import PageShell from '@/components/layout/PageShell';
+import Button    from '@/components/common/Button';
+import Input     from '@/components/common/Input';
+import Select    from '@/components/common/Select';
+import Card      from '@/components/common/Card';
+import { vehiclesApi } from '@/api/vehicles.api';
+import { VEHICLE_TYPES, VEHICLE_STATUSES } from '@/utils/constants';
 
 export default function EditVehiclePage() {
   const { id }   = useParams();
@@ -42,12 +42,13 @@ export default function EditVehiclePage() {
   function set(field, value) {
     setForm(p => ({ ...p, [field]: value }));
     if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
+    if (apiError) setApiError('');
   }
 
   function validate() {
     const e = {};
     if (!form.registrationNumber.trim()) e.registrationNumber = 'Registration number is required';
-    if (!form.name.trim())               e.name               = 'Name is required';
+    if (!form.name.trim())               e.name               = 'Vehicle name is required';
     if (!form.type)                      e.type               = 'Vehicle type is required';
     if (!form.maxLoadCapacity)           e.maxLoadCapacity    = 'Max load capacity is required';
     else if (Number(form.maxLoadCapacity) <= 0) e.maxLoadCapacity = 'Must be greater than 0';
@@ -84,45 +85,62 @@ export default function EditVehiclePage() {
 
   if (fetching) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Spinner size="lg" />
-      </div>
+      <PageShell title="Loading Vehicle…">
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
+          <span className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm mt-3">Loading vehicle details…</p>
+        </div>
+      </PageShell>
     );
   }
 
   if (!form) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-sm text-red-500">
-        {apiError || 'Vehicle not found'}
-      </div>
+      <PageShell title="Vehicle Not Found">
+        <div className="p-8 text-center bg-white rounded-2xl border border-slate-200/80 shadow-card max-w-md mx-auto">
+          <AlertCircle size={32} className="text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-slate-700 font-medium">{apiError || 'Vehicle not found'}</p>
+          <Link to="/vehicles" className="inline-block mt-4">
+            <Button size="sm" variant="secondary">Back to Vehicles</Button>
+          </Link>
+        </div>
+      </PageShell>
     );
   }
 
   return (
     <PageShell
       title="Edit Vehicle"
-      subtitle={`Editing ${form.registrationNumber} — ${form.name}`}
+      subtitle={`Editing ${form.registrationNumber} • ${form.name}`}
       actions={
         <Link to="/vehicles">
-          <Button variant="secondary" icon={ArrowLeft}>Back to Vehicles</Button>
+          <Button variant="secondary" size="sm" leftIcon={<ArrowLeft size={14} />}>
+            Back to Vehicles
+          </Button>
         </Link>
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <div className="space-y-4">
+        <div className="space-y-5 max-w-4xl">
 
           {apiError && (
-            <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
               {apiError}
             </div>
           )}
 
-          <div className="bg-bg-card border border-border-card rounded-xl shadow-card">
-            <div className="flex items-center gap-2 px-6 py-4 border-b border-border">
-              <Truck className="w-4 h-4 text-content-muted" />
-              <h2 className="text-sm font-semibold text-content-primary">Vehicle Information</h2>
+          <Card padding="none">
+            <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                <Truck size={16} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Vehicle Information</h2>
+                <p className="text-xs text-slate-500">Update specifications and operational status</p>
+              </div>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <Input
                 id="registrationNumber"
                 label="Registration Number"
@@ -198,11 +216,15 @@ export default function EditVehiclePage() {
                 placeholder="Select status"
               />
             </div>
-          </div>
+          </Card>
 
-          <div className="flex items-center justify-end gap-3">
-            <Link to="/vehicles"><Button variant="secondary">Cancel</Button></Link>
-            <Button type="submit" icon={Save} loading={loading}>Update Vehicle</Button>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Link to="/vehicles">
+              <Button variant="secondary" type="button">Cancel</Button>
+            </Link>
+            <Button type="submit" leftIcon={<Save size={16} />} loading={loading}>
+              Update Vehicle
+            </Button>
           </div>
         </div>
       </form>

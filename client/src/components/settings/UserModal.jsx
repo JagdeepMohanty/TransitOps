@@ -1,33 +1,31 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UserPlus, Edit2, Trash2, Upload, Eye, EyeOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, UserPlus, Edit2, Trash2, Eye, EyeOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-const ROLES = [
-  { value: 'administrator', label: 'Administrator' },
-  { value: 'fleet_manager', label: 'Fleet Manager' },
-  { value: 'dispatcher', label: 'Dispatcher' },
-  { value: 'safety_officer', label: 'Safety Officer' },
-  { value: 'financial_analyst', label: 'Financial Analyst' },
-  { value: 'driver', label: 'Driver' },
+const SYSTEM_ROLES = [
+  { id: 1, name: 'FLEET_MANAGER',     label: 'Fleet Manager' },
+  { id: 2, name: 'DISPATCHER',        label: 'Dispatcher' },
+  { id: 3, name: 'SAFETY_OFFICER',    label: 'Safety Officer' },
+  { id: 4, name: 'FINANCIAL_ANALYST', label: 'Financial Analyst' },
 ];
-const DEPARTMENTS = ['IT', 'Operations', 'Logistics', 'Transport', 'Safety', 'Finance', 'HR'];
-const EMPTY = { name: '', email: '', phone: '', role: 'driver', department: 'Operations', status: 'active', password: '', confirm: '' };
+
+const EMPTY = { name: '', email: '', roleId: '1', password: '', confirm: '' };
 
 function PasswordStrength({ password }) {
   if (!password) return null;
-  const score = [/.{8,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
+  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const levels = [
-    { label: 'Weak',   color: 'bg-danger',      text: 'text-danger'      },
-    { label: 'Fair',   color: 'bg-warning',     text: 'text-warning'     },
-    { label: 'Good',   color: 'bg-[#38BDF8]',   text: 'text-[#38BDF8]'  },
-    { label: 'Strong', color: 'bg-success',     text: 'text-success'     },
+    { label: 'Weak',   color: 'bg-rose-500',    text: 'text-rose-500'    },
+    { label: 'Fair',   color: 'bg-amber-500',   text: 'text-amber-500'   },
+    { label: 'Good',   color: 'bg-blue-500',    text: 'text-blue-500'    },
+    { label: 'Strong', color: 'bg-emerald-500', text: 'text-emerald-500' },
   ];
   const lvl = levels[Math.max(0, score - 1)];
   return (
     <div className="mt-1.5">
       <div className="flex gap-1 mb-1">
         {[1,2,3,4].map(i => (
-          <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? lvl.color : 'bg-border'}`} />
+          <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? lvl.color : 'bg-slate-200'}`} />
         ))}
       </div>
       <p className={`text-[10px] font-bold ${lvl.text}`}>{lvl.label} password</p>
@@ -38,13 +36,24 @@ function PasswordStrength({ password }) {
 const overlay = { hidden: { opacity: 0 }, show: { opacity: 1 }, exit: { opacity: 0 } };
 const panel   = { hidden: { opacity: 0, scale: 0.95, y: 16 }, show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } }, exit: { opacity: 0, scale: 0.95, y: 16, transition: { duration: 0.15 } } };
 
-export default function UserModal({ mode, user, onClose, onConfirm }) {
+export default function UserModal({ mode, user, roles = [], onClose, onConfirm }) {
   const [form, setForm]     = useState(EMPTY);
   const [showPw, setShowPw] = useState(false);
 
+  const availableRoles = roles.length > 0 ? roles : SYSTEM_ROLES;
+
   useEffect(() => {
-    if (user && mode !== 'delete') setForm({ ...EMPTY, ...user, password: '', confirm: '' });
-    else setForm(EMPTY);
+    if (user && mode !== 'delete') {
+      setForm({
+        name:     user.name || '',
+        email:    user.email || '',
+        roleId:   String(user.roleId || user.role?.id || '1'),
+        password: '',
+        confirm:  '',
+      });
+    } else {
+      setForm(EMPTY);
+    }
   }, [user, mode]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -53,111 +62,150 @@ export default function UserModal({ mode, user, onClose, onConfirm }) {
     <AnimatePresence>
       {mode && (
         <motion.div variants={overlay} initial="hidden" animate="show" exit="exit"
-          className="modal-overlay" onClick={onClose}>
+          className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
           <motion.div variants={panel} initial="hidden" animate="show" exit="exit"
-            className={`modal-panel ${mode === 'delete' ? 'max-w-md' : 'max-w-lg w-full'}`}
+            className={`modal-panel bg-white rounded-2xl shadow-xl overflow-hidden ${mode === 'delete' ? 'max-w-md w-full' : 'max-w-lg w-full'}`}
             onClick={e => e.stopPropagation()}>
 
             {mode === 'delete' ? (
               <>
-                <div className="modal-header">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-danger/10 border border-danger/20"><Trash2 className="w-4 h-4 text-danger" /></div>
-                    <span className="modal-title">Delete User</span>
+                    <div className="p-2 rounded-xl bg-rose-50 text-rose-600"><Trash2 className="w-4 h-4" /></div>
+                    <span className="font-bold text-slate-900 text-sm">Delete System User</span>
                   </div>
-                  <button onClick={onClose} className="btn-icon btn-ghost"><X className="w-4 h-4" /></button>
+                  <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="modal-body">
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-danger/10 border border-danger/20 mb-4">
-                    <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+                <div className="p-6">
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 mb-4 text-xs text-rose-800">
+                    <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600" />
                     <div>
-                      <p className="text-sm font-bold text-content-primary">This action cannot be undone</p>
-                      <p className="text-xs text-content-muted mt-1">You are about to permanently delete <strong className="text-content-primary">{user?.name}</strong>. All their data, sessions and permissions will be removed.</p>
+                      <p className="font-bold">Permanent Deletion</p>
+                      <p className="mt-0.5">Are you sure you want to remove <strong>{user?.name}</strong> ({user?.email}) from system access?</p>
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-bg-base/50 border border-border/40">
-                    <p className="text-[10px] text-content-muted font-medium">User details</p>
-                    <p className="text-sm font-bold text-content-primary mt-1">{user?.name}</p>
-                    <p className="text-xs text-content-muted">{user?.email}</p>
-                  </div>
                 </div>
-                <div className="modal-footer">
-                  <button onClick={onClose} className="btn-secondary btn-sm">Cancel</button>
-                  <button onClick={() => onConfirm(user)} className="btn-danger btn-sm">Delete User</button>
+                <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                  <button onClick={onClose} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                  <button onClick={() => onConfirm(user)} className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg">Delete User</button>
                 </div>
               </>
             ) : (
               <>
                 {/* Header */}
-                <div className="modal-header">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                   <div className="flex items-center gap-2.5">
-                    <div className={`p-2 rounded-xl border ${mode === 'edit' ? 'bg-primary/10 border-primary/20' : 'bg-success/10 border-success/20'}`}>
-                      {mode === 'edit' ? <Edit2 className="w-4 h-4 text-primary" /> : <UserPlus className="w-4 h-4 text-success" />}
+                    <div className={`p-2 rounded-xl ${mode === 'edit' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {mode === 'edit' ? <Edit2 className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
                     </div>
                     <div>
-                      <span className="modal-title">{mode === 'edit' ? 'Edit User' : 'Add New User'}</span>
-                      <p className="text-xs text-content-muted mt-0.5">{mode === 'edit' ? 'Update user information and access' : 'Create a new team member account'}</p>
+                      <span className="font-bold text-slate-900 text-sm">{mode === 'edit' ? 'Edit User' : 'Add New User'}</span>
+                      <p className="text-xs text-slate-500 mt-0.5">{mode === 'edit' ? 'Update account info and role' : 'Create a new database user account'}</p>
                     </div>
                   </div>
-                  <button onClick={onClose} className="btn-icon btn-ghost"><X className="w-4 h-4" /></button>
+                  <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
                 </div>
 
                 {/* Body */}
-                <div className="modal-body space-y-4 max-h-[70vh] overflow-y-auto">
-                  {/* Avatar */}
-                  <div className="flex items-center gap-4 p-4 rounded-xl border border-dashed border-border/60 bg-bg-base/30 hover:border-primary/40 transition-colors">
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0 shadow-[0_0_16px_rgba(59,130,246,0.3)]">
-                      <span className="text-lg font-black text-white">{form.name ? form.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'U'}</span>
+                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
+                      <input
+                        value={form.name}
+                        onChange={e => set('name', e.target.value)}
+                        placeholder="e.g. Vikram Sharma"
+                        className="w-full h-9 px-3 text-xs border border-slate-200 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                      />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-content-primary">Profile Photo</p>
-                      <p className="text-xs text-content-muted mt-0.5">PNG, JPG up to 2MB · Auto-generated from name</p>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
+                      <input
+                        value={form.email}
+                        onChange={e => set('email', e.target.value)}
+                        type="email"
+                        placeholder="user@transitops.com"
+                        className="w-full h-9 px-3 text-xs border border-slate-200 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                      />
                     </div>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-card border border-border text-xs font-bold text-content-secondary hover:border-primary/50 hover:text-primary transition-all">
-                      <Upload className="w-3.5 h-3.5" />Upload
-                    </button>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Role *</label>
+                      <select
+                        value={form.roleId}
+                        onChange={e => set('roleId', e.target.value)}
+                        className="w-full h-9 px-3 text-xs border border-slate-200 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                      >
+                        {availableRoles.map(r => (
+                          <option key={r.id} value={r.id}>{r.name || r.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Fields */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div><label className="input-label">Full Name *</label><input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="Arjun Sharma" className="input-field" /></div>
-                    <div><label className="input-label">Email Address *</label><input value={form.email} onChange={e=>set('email',e.target.value)} type="email" placeholder="arjun@transitops.com" className="input-field" /></div>
-                    <div><label className="input-label">Phone Number</label><input value={form.phone} onChange={e=>set('phone',e.target.value)} placeholder="+91 98765 43210" className="input-field" /></div>
-                    <div><label className="input-label">Department</label><select value={form.department} onChange={e=>set('department',e.target.value)} className="select-field">{DEPARTMENTS.map(d=><option key={d}>{d}</option>)}</select></div>
-                    <div><label className="input-label">Role *</label><select value={form.role} onChange={e=>set('role',e.target.value)} className="select-field">{ROLES.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
-                    <div><label className="input-label">Status</label><select value={form.status} onChange={e=>set('status',e.target.value)} className="select-field"><option value="active">Active</option><option value="inactive">Inactive</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></div>
-                  </div>
-
-                  {/* Password (add only) */}
-                  {mode !== 'edit' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-border/40">
-                      <div>
-                        <label className="input-label">Password *</label>
-                        <div className="relative">
-                          <input type={showPw ? 'text' : 'password'} value={form.password} onChange={e=>set('password',e.target.value)} placeholder="••••••••" className="input-field pr-10" />
-                          <button onClick={()=>setShowPw(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary transition-colors">
-                            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        <PasswordStrength password={form.password} />
+                  {/* Password (add or optional update) */}
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {mode === 'edit' ? 'Change Password (leave blank to keep current)' : 'Password *'}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPw ? 'text' : 'password'}
+                          value={form.password}
+                          onChange={e => set('password', e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full h-9 px-3 text-xs border border-slate-200 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPw(v => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
                       </div>
+                      {form.password && <PasswordStrength password={form.password} />}
+                    </div>
+
+                    {(mode !== 'edit' || form.password) && (
                       <div>
-                        <label className="input-label">Confirm Password *</label>
-                        <input type="password" value={form.confirm} onChange={e=>set('confirm',e.target.value)} placeholder="••••••••" className={`input-field ${form.confirm && form.confirm !== form.password ? 'border-danger focus:ring-danger' : ''}`} />
-                        {form.confirm && form.confirm !== form.password && <p className="input-error mt-1">Passwords do not match</p>}
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password *</label>
+                        <input
+                          type="password"
+                          value={form.confirm}
+                          onChange={e => set('confirm', e.target.value)}
+                          placeholder="••••••••"
+                          className={`w-full h-9 px-3 text-xs border rounded-xl outline-none focus:ring-1 ${
+                            form.confirm && form.confirm !== form.password
+                              ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                              : 'border-slate-200 focus:border-brand-500 focus:ring-brand-500/20'
+                          }`}
+                        />
+                        {form.confirm && form.confirm !== form.password && (
+                          <p className="text-[11px] text-rose-600 mt-1">Passwords do not match</p>
+                        )}
                         {form.confirm && form.confirm === form.password && form.confirm.length > 0 && (
-                          <div className="flex items-center gap-1 mt-1.5"><CheckCircle2 className="w-3 h-3 text-success" /><span className="text-[10px] text-success font-bold">Passwords match</span></div>
+                          <div className="flex items-center gap-1 mt-1 text-emerald-600 text-[11px] font-semibold">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
+                          </div>
                         )}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Footer */}
-                <div className="modal-footer">
-                  <button onClick={onClose} className="btn-secondary btn-sm">Cancel</button>
-                  <button onClick={()=>onConfirm(form)} disabled={mode !== 'edit' && form.confirm !== form.password}
-                    className={`btn-sm ${mode === 'edit' ? 'btn-primary' : 'btn-success'} disabled:opacity-40 disabled:cursor-not-allowed`}>
+                <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                  <button onClick={onClose} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                  <button
+                    onClick={() => onConfirm(form)}
+                    disabled={
+                      !form.name ||
+                      !form.email ||
+                      (mode !== 'edit' && (!form.password || form.password !== form.confirm))
+                    }
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
+                  >
                     {mode === 'edit' ? 'Save Changes' : 'Create User'}
                   </button>
                 </div>

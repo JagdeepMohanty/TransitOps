@@ -1,359 +1,499 @@
-# TransitOps — Smart Transport Operations Platform
+# TransitOps — Smart Fleet & Transport Operations Platform
 
-> A full-stack fleet management system built for the **Odoo Hackathon**.
+> **Odoo Hackathon Project** — A resilient, production-ready, full-stack Fleet and Transportation Management System built with React, Node.js, Express, Prisma ORM, and MySQL.
 
-TransitOps gives fleet managers, dispatchers, safety officers, and financial analysts a single platform to manage vehicles, drivers, trips, maintenance, fuel, and operational costs — with role-based access control baked in from day one.
+TransitOps delivers an enterprise-grade platform for fleet managers, dispatchers, safety officers, and financial analysts to manage vehicle registries, driver lifecycles, end-to-end trip dispatching, preventative and corrective maintenance, fuel logs, operational expenses, and executive analytics — backed by role-based access control (RBAC), robust database transactions, and live REST API integrations.
 
 ---
 
 ## Table of Contents
 
-- [Tech Stack](#tech-stack)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Available Scripts](#available-scripts)
-- [Environment Variables](#environment-variables)
-- [Database Schema](#database-schema)
-- [API Reference](#api-reference)
-- [Pages & Routes](#pages--routes)
-- [RBAC — Roles & Permissions](#rbac--roles--permissions)
-- [Team](#team)
+1. [Executive Summary & Features](#executive-summary--features)
+2. [Architecture & Tech Stack](#architecture--tech-stack)
+3. [Prerequisites & System Requirements](#prerequisites--system-requirements)
+4. [Project Directory Structure](#project-directory-structure)
+5. [Quick Start & Setup Guide](#quick-start--setup-guide)
+   - [Automated Full Installation](#1-clone-and-install-dependencies)
+   - [Environment Configuration](#2-configure-environment-variables)
+   - [Database Setup with Docker Compose or Native MySQL](#3-database-setup)
+   - [Prisma Migration & Database Seeding](#4-prisma-setup--lifecycle)
+   - [Running Development Servers](#5-running-the-development-servers)
+6. [Available npm Scripts](#available-npm-scripts)
+7. [Environment Variables Reference](#environment-variables-reference)
+8. [Database Schema & Data Model](#database-schema--data-model)
+9. [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
+10. [Development Demo Accounts](#development-demo-accounts)
+11. [REST API Reference & Health Check Probes](#rest-api-reference--health-check-probes)
+12. [Testing & Quality Assurance](#testing--quality-assurance)
+13. [Frontend Production Build](#frontend-production-build)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Team & Contributing](#team--contributing)
 
 ---
 
-## Tech Stack
+## Executive Summary & Features
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, Vite 5, Tailwind CSS 3, Framer Motion 12 |
-| Routing | React Router DOM 6 |
-| Forms | React Hook Form 7 + Zod 4 |
-| Charts | Recharts 2 |
-| HTTP Client | Axios |
-| Icons | Lucide React |
-| Backend | Node.js 18+, Express 4, ES Modules |
-| Database | MySQL 8.x |
-| ORM | Prisma 5.x |
-| Validation | Zod 3 |
-| Auth | JWT + bcryptjs |
-| Security | Helmet, express-rate-limit, CORS |
-| Logging | Morgan |
-| Dev Tooling | Nodemon, Concurrently |
+### Core Capabilities
+- **Fleet Registry:** Vehicle asset tracking with registration numbers, load capacities, fuel types, mileage tracking, and operational statuses (`AVAILABLE`, `ON_TRIP`, `IN_SHOP`, `OUT_OF_SERVICE`).
+- **Driver Lifecycle & Safety:** Driver licensing registry, license expiration alerts, contact details, and dynamic safety scores (0–100 scale).
+- **End-to-End Trip Dispatching:** Multi-state trip lifecycle (`DRAFT` → `DISPATCHED` → `COMPLETED` / `CANCELLED`). Dispatches enforce capacity limits, vehicle availability, and driver readiness within atomic Prisma database transactions.
+- **Maintenance Records:** Scheduled and unscheduled service tracking (`SCHEDULED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), priority levels, odometer logs, and financial repair costing.
+- **Fuel Tracking & Efficiency:** Fuel refill logs recording quantities, cost per liter, pump locations, odometer readings, and auto-computed km/L efficiency.
+- **Operational Expense Management:** Multi-category cost tracking (`FUEL`, `TOLL`, `MAINTENANCE`, `PARKING`, `REPAIR`, `OTHER`) linked to specific vehicles or trips.
+- **Executive Analytics & CSV Export:** Real-time KPI summaries, fleet status distributions, cost trends, and streaming CSV export (`json2csv`) for business auditing.
+- **Authentication & Security:** JWT-based stateless authentication, bcrypt password hashing (12 salt rounds), role-protected endpoints, HTTP-only cookies / bearer token authentication, rate limiting, and Helmet security headers.
 
 ---
 
-## Features
+## Architecture & Tech Stack
 
-### Backend
-- JWT authentication with role-based access control (RBAC)
-- Full CRUD for Vehicles, Drivers, Trips, Maintenance, Fuel Logs, Expenses
-- Trip dispatch workflow (DRAFT → DISPATCHED → COMPLETED / CANCELLED)
-- Dashboard KPI aggregations
-- Reports with CSV export (`json2csv`)
-- Prisma migrations + seed script
-- Rate limiting, Helmet security headers, Morgan request logging
-- Centralized error handling and 404 middleware
-- Health check endpoint
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Client Layer                           │
+│  React 18 + Vite 5 + Tailwind CSS 3 + Recharts + Lucide    │
+│  (Port 5173 with Vite Dev Proxy to /api)                    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTP / REST / JSON
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Backend Layer                          │
+│  Express 4 + Node.js 18+ (ES Modules)                       │
+│  - Morgan Logging & Centralized Error Middleware            │
+│  - JWT Auth Guard & RBAC Role Protection Middleware         │
+│  - Zod Request Schema Validation                            │
+│  (Port 5001)                                                │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Prisma 5.22.0
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Database Layer                         │
+│  MySQL 8.0+ (InnoDB, UTF8mb4)                               │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Frontend
-- Responsive layout with collapsible sidebar and mobile drawer
-- Dashboard with fleet KPIs, charts, and recent trips
-- Vehicle registry with status tracking
-- Driver profiles with safety scores and license expiry tracking
-- Trip dispatcher with timeline and status progression
-- Fleet maintenance scheduler with cost tracking
-- Fuel log management with trend charts
-- Expense management with distribution charts
-- Reports & analytics with CSV export
-- Settings — full enterprise control panel:
-  - User management (add / edit / delete / suspend)
-  - Role & Permission Matrix (6 roles × 9 modules × 6 permissions)
-  - Application settings (company, timezone, language, currency, theme)
-  - Security settings (password, 2FA, sessions, API keys)
-  - Notification preferences (email & push toggles, digest frequency)
-  - Activity timeline (live audit log)
-- Profile page with account details and security overview
-- Dark / light theme support
-- Animated UI with Framer Motion
+| Layer | Technology | Details |
+|---|---|---|
+| **Frontend** | React 18, Vite 5, Tailwind CSS 3 | Fast HMR, responsive layout, slate design system |
+| **State & Forms** | Context API, React Hook Form 7, Zod 3 | Client-side schema validation, accessible inputs |
+| **Visualizations** | Recharts 2, Lucide React | Responsive SVG charts and unified icon library |
+| **Backend Runtime** | Node.js 18+ (LTS), Express 4 (ESM) | Native ES modules, modular controller-service-repo |
+| **ORM & Database** | Prisma 5.22.0, MySQL 8.0+ | Strict type generation, foreign keys, transactions |
+| **Security** | JWT, bcryptjs, Helmet, CORS, Rate Limit | 100 req/15min rate limit, secure CORS origins |
+| **Testing** | Node.js Test Runner (`node --test`), Supertest | 69 unit and integration tests |
 
 ---
 
-## Project Structure
+## Prerequisites & System Requirements
+
+- **Node.js:** `v18.0.0` or higher (`v20.x` LTS recommended)
+- **npm:** `v9.0.0` or higher
+- **MySQL:** `v8.0` or higher (running locally or via Docker)
+- **Operating Systems Supported:** Windows 10/11, macOS (Apple Silicon / Intel), Linux (Ubuntu, Debian, Fedora)
+
+---
+
+## Project Directory Structure
 
 ```
 TransitOps-Odoo-Hackathon/
-├── client/                     # React frontend (Vite)
-│   └── src/
-│       ├── api/                # Axios API modules
-│       ├── components/         # Reusable UI components
-│       │   ├── auth/
-│       │   ├── common/
-│       │   ├── dashboard/
-│       │   ├── drivers/
-│       │   ├── finance/
-│       │   ├── layout/
-│       │   ├── maintenance/
-│       │   ├── reports/
-│       │   ├── settings/
-│       │   ├── trips/
-│       │   └── vehicles/
-│       ├── context/            # AuthContext, ThemeContext
-│       ├── hooks/              # useAuth, useDebounce, usePagination, useToast
-│       ├── pages/              # Page-level components per route
-│       ├── routes/             # ProtectedRoute, RoleProtectedRoute, PublicRoute
-│       ├── schemas/            # Zod validation schemas
-│       ├── styles/             # Global CSS + design tokens
-│       └── utils/              # formatCurrency, formatDate, mock data, storage
-├── server/                     # Express backend
+├── client/                               # Frontend React application (Vite)
+│   ├── public/                           # Static public assets
+│   ├── src/
+│   │   ├── api/                          # Axios API clients (auth, vehicles, drivers, trips, etc.)
+│   │   ├── components/
+│   │   │   ├── common/                   # Reusable UI primitives (Button, Card, Input, Table, Modal)
+│   │   │   ├── dashboard/                # Metric cards, status distribution, expense charts
+│   │   │   ├── feedback/                 # Toast notifications and alerts
+│   │   │   └── layout/                   # Navbar, Sidebar, PageShell, Mobile drawer
+│   │   ├── context/                      # AuthContext and ThemeContext
+│   │   ├── hooks/                        # Custom React hooks (useAuth, usePagination, useDebounce)
+│   │   ├── pages/                        # View components mapped to application routes
+│   │   │   ├── auth/                     # LoginPage, UnauthorizedPage
+│   │   │   ├── dashboard/                # Main KPI Dashboard
+│   │   │   ├── vehicles/                 # VehiclesPage, AddVehiclePage, EditVehiclePage
+│   │   │   ├── drivers/                  # DriversPage, AddDriverPage, EditDriverPage
+│   │   │   ├── trips/                    # TripsPage, CreateTripPage, TripDetailsPage
+│   │   │   ├── maintenance/              # MaintenancePage with log modal
+│   │   │   ├── Fuel/                     # FuelPage with refill modal
+│   │   │   ├── Expenses/                 # ExpensesPage with expense modal
+│   │   │   ├── reports/                  # ReportsPage with CSV export
+│   │   │   └── profile/                  # User profile and security overview
+│   │   ├── routes/                       # ProtectedRoute, RoleProtectedRoute, PublicRoute
+│   │   ├── schemas/                      # Client-side Zod validation schemas
+│   │   ├── styles/                       # Global styles and design tokens
+│   │   └── utils/                        # Currency, date, and formatting utilities
+│   ├── .env.example                      # Frontend environment template
+│   ├── package.json                      # Frontend dependencies and Vite scripts
+│   ├── tailwind.config.js                # Design system tokens and semantic color definitions
+│   └── vite.config.js                    # Vite server config and API proxy setup
+├── server/                               # Backend Express API
 │   ├── prisma/
-│   │   ├── schema.prisma       # Database schema
-│   │   ├── migrations/         # Prisma migration history
-│   │   └── seed.js             # Initial data seed
-│   └── src/
-│       ├── config/             # Environment & app config
-│       ├── constants/          # Shared constants & messages
-│       ├── controllers/        # Route handler logic
-│       ├── middleware/         # Auth, error, rate-limit middleware
-│       ├── repositories/       # Prisma data access layer
-│       ├── routes/             # Express routers (9 modules)
-│       ├── services/           # Business logic layer
-│       ├── utils/              # Helpers (calculations, CSV, etc.)
-│       └── validators/         # Zod request validators
-├── docs/
-│   ├── API.md                  # Full API endpoint contract
-│   ├── DATABASE.md             # Database setup guide
-│   ├── BUSINESS_RULES.md
-│   ├── DEMO_FLOW.md
-│   └── DEPLOYMENT.md
-├── package.json                # Root scripts (concurrently)
-└── CONTRIBUTING.md
+│   │   ├── migrations/                   # SQL migration history
+│   │   ├── schema.prisma                 # Prisma schema definition
+│   │   └── seed.js                       # Database seeder (roles, users, sample records)
+│   ├── src/
+│   │   ├── config/                       # Prisma client, CORS options, environment loader
+│   │   ├── constants/                    # Shared enums and HTTP status codes
+│   │   ├── controllers/                  # Route request handlers
+│   │   ├── middleware/                   # JWT auth, RBAC permissions, error handlers
+│   │   ├── repositories/                 # Prisma data access layer
+│   │   ├── routes/                       # Express route modules
+│   │   ├── services/                     # Business domain logic and validation
+│   │   ├── utils/                        # Token generation, calculations, CSV export
+│   │   ├── validators/                   # Server-side Zod schema validators
+│   │   ├── app.js                        # Express app initialization
+│   │   └── server.js                     # HTTP listener and graceful shutdown handling
+│   ├── tests/                            # Automated integration test suites
+│   │   ├── auth.test.js                  # Authentication and session tests
+│   │   ├── vehicles.test.js              # Vehicle CRUD and validation tests
+│   │   ├── drivers.test.js               # Driver registry tests
+│   │   ├── trips.test.js                 # Trip dispatch state machine tests
+│   │   └── maintenance.test.js           # Maintenance logging tests
+│   ├── .env.example                      # Backend environment template
+│   └── package.json                      # Backend dependencies and test scripts
+├── docs/                                 # Technical documentation
+│   ├── API.md                            # Comprehensive REST API endpoint contract
+│   ├── DATABASE.md                       # Database schema and setup documentation
+│   └── REPAIR_AUDIT.md                   # Detailed 13-section audit and repair report
+├── package.json                          # Root orchestration package.json
+└── README.md                             # This documentation file
 ```
 
 ---
 
-## Prerequisites
+## Quick Start & Setup Guide
 
-- **Node.js** 18 or higher
-- **npm** 9 or higher
-- **MySQL** 8.0 or higher (local or managed)
+### 1. Clone and Install Dependencies
 
----
-
-## Setup
-
-### 1. Clone and install dependencies
+Clone the repository and install all dependencies (root, client, and server) using the unified setup script:
 
 ```bash
 git clone https://github.com/JagdeepMohanty/TransitOps-Odoo-Hackathon.git
 cd TransitOps-Odoo-Hackathon
+
+# Install root, client, and server dependencies in one command
 npm run install:all
 ```
 
-### 2. Configure the backend environment
+---
 
+### 2. Configure Environment Variables
+
+Create `.env` files for both server and client:
+
+#### Backend Configuration (`server/.env`)
 ```bash
-# macOS / Linux
-cp server/.env.example server/.env
-
 # Windows PowerShell
 Copy-Item server/.env.example server/.env
+
+# macOS / Linux
+cp server/.env.example server/.env
 ```
 
-Edit `server/.env` with your credentials:
-
+Ensure `server/.env` contains valid credentials:
 ```env
-PORT=5000
+PORT=5001
 NODE_ENV=development
 DATABASE_URL=mysql://root:yourpassword@localhost:3306/transitops
-JWT_SECRET=replace_with_a_long_random_secret_minimum_32_chars
+JWT_SECRET=transitops_super_secret_jwt_key_32_characters_minimum
 JWT_EXPIRES_IN=8h
 CLIENT_URL=http://localhost:5173
 ```
 
-> ⚠️ Never commit `server/.env` — it is gitignored.
+> **Important Port Notice:** Port `5001` is used intentionally to prevent port collisions with Windows background services such as Intel Graphics Command Center (`OneApp.IGCC.WinService`) which occupies port `5000`.
 
-### 3. Configure the frontend environment (optional)
-
+#### Frontend Configuration (`client/.env`)
 ```bash
 # Windows PowerShell
 Copy-Item client/.env.example client/.env
+
+# macOS / Linux
+cp client/.env.example client/.env
 ```
 
-The default points to `http://localhost:5001/api`. Adjust `VITE_API_URL` if your backend runs on a different port.
+Ensure `client/.env` contains:
+```env
+VITE_API_URL=http://localhost:5001/api
+VITE_APP_NAME=TransitOps
+VITE_APP_VERSION=1.0.0
+```
 
-### 4. Create the MySQL database
+---
 
+### 3. Database Setup
+
+You can run MySQL natively or with Docker:
+
+#### Option A: Docker Compose (Recommended for clean isolation)
+If Docker is installed on your machine, create a quick container:
+```bash
+docker run --name transitops-mysql -e MYSQL_ROOT_PASSWORD=yourpassword -e MYSQL_DATABASE=transitops -p 3306:3306 -d mysql:8.0
+```
+
+#### Option B: Native MySQL Server
+Log into your MySQL CLI:
 ```sql
-CREATE DATABASE transitops
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE transitops CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 5. Run Prisma setup
+---
+
+### 4. Prisma Setup & Lifecycle
+
+Run the Prisma workflow from the project root:
 
 ```bash
-npm run prisma:generate   # generate the Prisma client
-npm run prisma:migrate    # run all migrations
-npm run prisma:seed       # seed roles and demo users
+# Step 1: Generate the Prisma Client
+npm run prisma:generate
+
+# Step 2: Apply Database Migrations
+npm run prisma:migrate
+
+# Step 3: Seed Demo Roles, Users, and Sample Data
+npm run prisma:seed
 ```
 
-### 6. Start development
+> **Windows File Lock Precaution:** Before running `npm run prisma:generate`, ensure any active backend server process is stopped. On Windows, Node.js holds a file lock on `query_engine-windows.dll.node`, which causes an `EPERM` rename error if regenerated while the server is running.
+
+---
+
+### 5. Running the Development Servers
+
+Start both the backend API and frontend Vite development server concurrently:
 
 ```bash
 npm run dev
 ```
 
-Starts the backend on **port 5000** and the frontend on **port 5173** concurrently.
+- **Frontend Application:** [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:5001/api](http://localhost:5001/api)
+- **Health Check Probe:** [http://localhost:5001/api/health](http://localhost:5001/api/health)
 
 ---
 
-## Available Scripts
+## Available npm Scripts
 
-Run all scripts from the **project root**.
+All scripts can be run directly from the **project root**:
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start backend + frontend concurrently |
-| `npm run server` | Start backend only (Nodemon) |
-| `npm run client` | Start frontend only (Vite) |
-| `npm run install:all` | Install root + client + server dependencies |
-| `npm run build` | Build the frontend for production |
-| `npm run prisma:generate` | Regenerate Prisma client after schema changes |
-| `npm run prisma:migrate` | Run pending database migrations |
-| `npm run prisma:seed` | Seed initial roles and demo users |
-
-Additional server-only scripts (run from `server/`):
-
-| Script | Description |
-|--------|-------------|
-| `npm run start` | Start backend in production mode |
-| `npm run prisma:deploy` | Deploy migrations in production |
-| `npm run prisma:studio` | Open Prisma Studio (DB GUI) |
+| Command | Action |
+|---|---|
+| `npm run dev` | Starts backend (port 5001) and frontend (port 5173) concurrently |
+| `npm run server` | Starts backend server only with Nodemon auto-reload |
+| `npm run client` | Starts Vite frontend development server only |
+| `npm run install:all` | Concurrently installs dependencies for root, server, and client |
+| `npm test` | Executes the complete backend test suite (69 integration tests) |
+| `npm run build` | Builds the frontend for production into `client/dist` |
+| `npm run prisma:generate` | Generates `@prisma/client` from `server/prisma/schema.prisma` |
+| `npm run prisma:migrate` | Runs Prisma schema migrations against the configured database |
+| `npm run prisma:seed` | Populates database with seed users and test records |
 
 ---
 
-## Environment Variables
+## Environment Variables Reference
 
-### `server/.env`
+### Backend (`server/.env`)
+| Variable | Required | Description | Example / Default |
+|---|---|---|---|
+| `PORT` | No | Port on which Express listens | `5001` |
+| `NODE_ENV` | No | Execution environment (`development`, `production`, `test`) | `development` |
+| `DATABASE_URL` | **Yes** | MySQL connection URL (`mysql://USER:PWD@HOST:PORT/DB`) | `mysql://root:password@localhost:3306/transitops` |
+| `JWT_SECRET` | **Yes** | Secret signing key for JWT tokens (min 16 chars) | `your_secure_random_key_here` |
+| `JWT_EXPIRES_IN` | No | Token lifetime string | `8h` |
+| `CLIENT_URL` | No | Allowed CORS origin for browser requests | `http://localhost:5173` |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Backend server port | `5000` |
-| `NODE_ENV` | Environment (`development` / `production`) | `development` |
-| `DATABASE_URL` | MySQL connection string | — |
-| `JWT_SECRET` | Secret for signing JWTs (min 32 chars) | — |
-| `JWT_EXPIRES_IN` | JWT expiry duration | `8h` |
-| `CLIENT_URL` | Frontend origin for CORS | `http://localhost:5173` |
-
-### `client/.env`
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | Backend API base URL | `http://localhost:5001/api` |
-| `VITE_APP_NAME` | Application name | `TransitOps` |
-| `VITE_APP_VERSION` | Application version | `1.0.0` |
+### Frontend (`client/.env`)
+| Variable | Required | Description | Example / Default |
+|---|---|---|---|
+| `VITE_API_URL` | **Yes** | Base URL for REST API endpoints | `http://localhost:5001/api` |
+| `VITE_APP_NAME` | No | Application branding name displayed in title bar | `TransitOps` |
+| `VITE_APP_VERSION` | No | Current release version | `1.0.0` |
 
 ---
 
-## Database Schema
+## Database Schema & Data Model
 
-Built with Prisma on MySQL 8. Core models:
+TransitOps uses a normalized relational schema managed by Prisma:
 
-| Model | Description |
-|-------|-------------|
-| `User` | Platform users with hashed passwords and role assignment |
-| `Role` | FLEET_MANAGER, DISPATCHER, SAFETY_OFFICER, FINANCIAL_ANALYST |
-| `Vehicle` | Fleet vehicles with status, odometer, capacity, and cost tracking |
-| `Driver` | Drivers with license details, safety score, and availability status |
-| `Trip` | Trips linking a vehicle + driver with cargo, distance, and status workflow |
-| `Maintenance` | Maintenance logs per vehicle with cost and status tracking |
-| `FuelLog` | Fuel refill records linked to vehicle and optional trip |
-| `Expense` | Operational expenses (FUEL, TOLL, MAINTENANCE, PARKING, REPAIR, OTHER) |
+```mermaid
+erDiagram
+    Role ||--o{ User : "assigned to"
+    User ||--o{ Trip : "created by"
+    Vehicle ||--o{ Trip : "assigned to"
+    Vehicle ||--o{ Maintenance : "has"
+    Vehicle ||--o{ FuelLog : "logs"
+    Vehicle ||--o{ Expense : " incurs"
+    Driver ||--o{ Trip : "operates"
+    Trip ||--o{ FuelLog : "associated with"
+    Trip ||--o{ Expense : "generates"
+```
 
-See [`docs/DATABASE.md`](docs/DATABASE.md) for full setup instructions and schema details.
-
----
-
-## API Reference
-
-Base URL: `http://localhost:5000/api`
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| POST | `/api/auth/login` | Login and receive JWT |
-| GET | `/api/auth/me` | Get current authenticated user |
-| GET/POST | `/api/vehicles` | List / create vehicles |
-| GET/PUT/DELETE | `/api/vehicles/:id` | Get / update / delete vehicle |
-| GET/POST | `/api/drivers` | List / create drivers |
-| GET/PUT/DELETE | `/api/drivers/:id` | Get / update / delete driver |
-| GET/POST | `/api/trips` | List / create trips |
-| PUT | `/api/trips/:id/dispatch` | Dispatch a trip |
-| PUT | `/api/trips/:id/complete` | Complete a trip |
-| PUT | `/api/trips/:id/cancel` | Cancel a trip |
-| GET/POST | `/api/maintenance` | List / create maintenance logs |
-| GET/POST | `/api/fuel-logs` | List / create fuel logs |
-| GET/POST | `/api/expenses` | List / create expenses |
-| GET | `/api/dashboard` | Fleet KPI aggregations |
-| GET | `/api/reports` | Analytics data + CSV export |
-
-See [`docs/API.md`](docs/API.md) for the full endpoint contract with request/response schemas.
+### Core Models
+- **`User` / `Role`**: Multi-role user accounts with hashed passwords and role identifiers (`FLEET_MANAGER`, `DISPATCHER`, `SAFETY_OFFICER`, `FINANCIAL_ANALYST`).
+- **`Vehicle`**: Fleet vehicles with registration numbers, model, type, fuel type, maximum load capacity, current odometer, and status (`AVAILABLE`, `ON_TRIP`, `IN_SHOP`, `OUT_OF_SERVICE`).
+- **`Driver`**: Driver records with license number, license category, expiry date, contact info, availability, and safety score (0–100).
+- **`Trip`**: Trips with cargo details, origin, destination, planned/actual start/end times, odometer logs, and lifecycle status (`DRAFT`, `DISPATCHED`, `COMPLETED`, `CANCELLED`).
+- **`Maintenance`**: Maintenance records with service type, priority (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), cost, odometer, and status (`SCHEDULED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
+- **`FuelLog`**: Fuel logs with quantity (liters), cost per liter, total cost, fuel station name, and odometer reading.
+- **`Expense`**: General expense entries with category (`FUEL`, `TOLL`, `MAINTENANCE`, `PARKING`, `REPAIR`, `OTHER`), amount, and optional vehicle/trip links.
 
 ---
 
-## Pages & Routes
+## Role-Based Access Control (RBAC)
 
-| Route | Page | Description |
-|-------|------|-------------|
-| `/login` | Login | JWT authentication |
-| `/` | Dashboard | Fleet KPIs, charts, recent trips |
-| `/vehicles` | Vehicles | Vehicle registry & status |
-| `/drivers` | Drivers | Driver profiles & safety scores |
-| `/trips` | Trips | Trip dispatcher & timeline |
-| `/trips/create` | Create Trip | Schedule a new trip |
-| `/trips/:id` | Trip Details | Trip progress, costs, assignment |
-| `/maintenance` | Maintenance | Scheduled & unscheduled maintenance |
-| `/fuel` | Fuel Logs | Fuel tracking & refill logs |
-| `/expenses` | Expenses | Expense management & budgets |
-| `/reports` | Reports | Analytics, ROI, CSV export |
-| `/settings` | Settings | RBAC, users, security, notifications |
-| `/profile` | Profile | User profile & security overview |
-| `/unauthorized` | 403 | Access denied page |
+The application enforces fine-grained permissions at both the Express API middleware layer and the React route boundary:
+
+| Feature / Resource | Fleet Manager | Dispatcher | Safety Officer | Financial Analyst |
+|---|:---:|:---:|:---:|:---:|
+| **Dashboard KPIs** | Read | Read | Read | Read |
+| **Vehicles Registry** | Full CRUD | Read | Read | Read |
+| **Driver Profiles** | Full CRUD | Read | Read + Edit Score | Read |
+| **Trip Dispatcher** | Full CRUD | Create, Dispatch, Complete | Read | Read |
+| **Maintenance Logs** | Full CRUD | Read | Full CRUD | Read |
+| **Fuel Refill Logs** | Full CRUD | Read | Read | Full CRUD |
+| **Operational Expenses** | Full CRUD | Read | Read | Full CRUD |
+| **Reports & CSV Export** | Read + Export | Read | Read | Full CRUD + Export |
 
 ---
 
-## RBAC — Roles & Permissions
+## Development Demo Accounts
 
-| Role | Access |
-|------|--------|
-| Fleet Manager | Vehicles, Drivers, Trips, Maintenance — full CRUD |
-| Dispatcher | Trips — create & dispatch; other modules read-only |
-| Safety Officer | Drivers & Maintenance — read + edit |
-| Financial Analyst | Expenses, Fuel Logs, Reports — read + export |
+When you run `npm run prisma:seed`, the database is populated with ready-to-use demo accounts for all operational roles:
 
-The `/settings` page provides a live **Role & Permission Matrix** — 6 roles × 9 modules × 6 permission types (View, Create, Edit, Delete, Export, Manage).
+| Role | Email | Password | Primary Scope |
+|---|---|---|---|
+| **Fleet Manager** | `admin@transitops.com` | `Admin@123` | Full access across all modules |
+| **Dispatcher** | `dispatcher@transitops.com` | `Dispatcher@123` | Trip scheduling, dispatching, and completion |
+| **Safety Officer** | `safety@transitops.com` | `Safety@123` | Driver compliance, safety scores, and maintenance |
+| **Financial Analyst** | `finance@transitops.com` | `Finance@123` | Fuel logs, operational expenses, analytics & CSV |
 
----
-
-## Team
-
-| Member | Role |
-|--------|------|
-| Jagdeep | Team Lead & Backend Lead |
-| Lacki | Backend Developer |
-| Tanya | Frontend Developer |
-| Niharika | Frontend Developer |
+> **Quick Fill on Login:** The `/login` page includes one-click role demo buttons that automatically pre-fill credentials for rapid testing and demonstrations.
 
 ---
 
-## Contributing
+## REST API Reference & Health Check Probes
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the branch model, commit conventions, and team rules.
+All API routes are served under `/api` and return standardized JSON envelopes.
+
+### Health Check Endpoint
+- **URL:** `GET /api/health`
+- **Behavior:**
+  - When MySQL is connected: Returns HTTP `200 OK`
+    ```json
+    {
+      "status": "ok",
+      "timestamp": "2026-11-07T08:00:00.000Z",
+      "uptime": 124.5,
+      "environment": "development",
+      "database": "connected"
+    }
+    ```
+  - When MySQL is unreachable: Returns HTTP `503 Service Unavailable` with `database: "disconnected"` (Graceful Degradation).
+
+### Summary of REST Endpoints
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Authenticate user & return JWT token | Public |
+| `GET` | `/api/auth/me` | Fetch authenticated user profile | Authenticated |
+| `POST` | `/api/auth/logout` | Invalidate user session | Authenticated |
+| `GET` | `/api/dashboard` | Aggregated fleet KPIs and summary statistics | Authenticated |
+| `GET` | `/api/vehicles` | List vehicles with search, status filters, and pagination | Authenticated |
+| `POST` | `/api/vehicles` | Register a new fleet vehicle | Fleet Manager |
+| `GET` | `/api/vehicles/:id` | Fetch vehicle details by ID | Authenticated |
+| `PUT` | `/api/vehicles/:id` | Update vehicle details | Fleet Manager |
+| `DELETE` | `/api/vehicles/:id` | Remove vehicle from registry | Fleet Manager |
+| `GET` | `/api/drivers` | List drivers with search and status filters | Authenticated |
+| `POST` | `/api/drivers` | Add a new driver | Fleet Manager |
+| `GET` | `/api/drivers/:id` | Fetch driver details by ID | Authenticated |
+| `PUT` | `/api/drivers/:id` | Update driver details or safety score | Manager / Safety |
+| `DELETE` | `/api/drivers/:id` | Remove driver from registry | Fleet Manager |
+| `GET` | `/api/trips` | List trips with pagination, status, and search filters | Authenticated |
+| `POST` | `/api/trips` | Create a new DRAFT trip | Manager / Dispatcher |
+| `GET` | `/api/trips/:id` | Fetch trip details by ID | Authenticated |
+| `PUT` | `/api/trips/:id` | Update trip details (DRAFT status only) | Manager / Dispatcher |
+| `POST` | `/api/trips/:id/dispatch` | Atomically dispatch trip (vehicle/driver -> ON_TRIP) | Manager / Dispatcher |
+| `POST` | `/api/trips/:id/complete` | Complete trip, record odometer, restore availability | Manager / Dispatcher |
+| `POST` | `/api/trips/:id/cancel` | Cancel trip and restore availability | Manager / Dispatcher |
+| `DELETE` | `/api/trips/:id` | Delete trip (DRAFT status only) | Manager / Dispatcher |
+| `GET` | `/api/maintenance` | List maintenance records | Authenticated |
+| `POST` | `/api/maintenance` | Log a new maintenance schedule | Manager / Safety |
+| `GET` | `/api/fuel-logs` | List fuel refill records | Authenticated |
+| `POST` | `/api/fuel-logs` | Create fuel log entry | Manager / Finance |
+| `GET` | `/api/expenses` | List expense records | Authenticated |
+| `POST` | `/api/expenses` | Record operational expense | Manager / Finance |
+| `GET` | `/api/reports` | Fleet analytics and financial summaries | Authenticated |
+| `GET` | `/api/reports/export` | Download operational dataset as CSV | Authenticated |
+
+---
+
+## Testing & Quality Assurance
+
+The backend includes a comprehensive automated test suite powered by the native Node.js test runner (`node --test`) and Supertest:
+
+```bash
+# Run all 69 integration tests across all modules
+npm test
+```
+
+### Verified Test Matrix (69 of 69 passing):
+- **Authentication (`tests/auth.test.js`):** 9 tests covering valid credentials, invalid password rejection, non-existent user handling, missing field rejection, malformed JWTs, profile extraction, and logout.
+- **Vehicles (`tests/vehicles.test.js`):** 12 tests covering vehicle creation, duplicate registration rejection, pagination, availability filtering, single-record retrieval, odometer updates, and deletion.
+- **Drivers (`tests/drivers.test.js`):** 10 tests covering driver creation, duplicate license rejection, invalid expiration date rejection, availability queries, safety score updates, and deletion.
+- **Trips (`tests/trips.test.js`):** 29 tests validating the complete trip state machine: DRAFT creation, duplicate vehicle assignment checks, capacity validations, dispatch transitions, completion odometer validation, cancellation, and deletion constraints.
+- **Maintenance (`tests/maintenance.test.js`):** 9 tests covering maintenance logging, priority assignment, status transitions, vehicle service history, and cost aggregations.
+
+---
+
+## Frontend Production Build
+
+The frontend is optimized for production deployment via Vite:
+
+```bash
+# Build the production assets
+npm run build
+```
+
+- **Output Directory:** `client/dist/`
+- **Modules Transformed:** 2,562 modules compiled with zero errors.
+- **Assets:** Minified JS bundle and purged Tailwind CSS.
+
+---
+
+## Troubleshooting Guide
+
+### 1. Windows Port 5000 Conflict (`EADDRINUSE`)
+- **Symptoms:** The backend crashes immediately on startup with `Error: listen EADDRINUSE: address already in use :::5000`.
+- **Cause:** Windows systems frequently run the Intel Graphics Command Center (`OneApp.IGCC.WinService`) or Apple Bonjour on port `5000`.
+- **Resolution:** TransitOps defaults to port `5001`. Always verify `PORT=5001` in `server/.env` and `VITE_API_URL=http://localhost:5001/api` in `client/.env`.
+
+### 2. Prisma Engine DLL Lock on Windows (`EPERM`)
+- **Symptoms:** Running `npm run prisma:generate` fails with `EPERM: operation not permitted, rename ... query_engine-windows.dll.node`.
+- **Cause:** An active Node.js server process holds a persistent file lock on the Prisma binary.
+- **Resolution:** Terminate all running dev server processes (`Ctrl + C`) before executing `npm run prisma:generate`.
+
+### 3. Graceful Degradation / Database Offline
+- **Symptoms:** Health check `/api/health` returns status `503 Service Unavailable` with `database: "disconnected"`.
+- **Cause:** MySQL server is stopped or `DATABASE_URL` credentials are misconfigured.
+- **Resolution:** Start your MySQL instance (`net start MySQL80` or `docker start transitops-mysql`), verify user credentials, and check that the `transitops` database exists.
+
+### 4. CORS Errors in Browser Console
+- **Symptoms:** Browser console displays `Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource`.
+- **Resolution:** Verify `CLIENT_URL=http://localhost:5173` in `server/.env`. The backend CORS middleware explicitly permits requests originating from this URL.
+
+---
+
+## Team & Contributing
+
+Developed for the **Odoo Hackathon**:
+- **Jagdeep Mohanty** — Team Lead & Full-Stack Lead
+- **Lacki** — Backend Developer
+- **Tanya** — Frontend Developer
+- **Niharika** — Frontend Developer
+
+Refer to [`docs/REPAIR_AUDIT.md`](docs/REPAIR_AUDIT.md) for the complete engineering audit log across all phases of development.
 
 ---
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the [MIT License](LICENSE).

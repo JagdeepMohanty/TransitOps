@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "test": "node --test tests/auth.test.js tests/vehicles.test.js tests/drivers.test.js tests/maintenance.test.js tests/trips.test.js tests/signup_approval.test.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -27,6 +28,8 @@
     "json2csv": "^5.0.7",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "node-cron": "^4.6.0",
+    "transitops": "file:..",
     "zod": "^3.23.8"
   },
   "devDependencies": {

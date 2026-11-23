@@ -11,7 +11,7 @@ export const getMaintenance = asyncHandler(async (req, res) => {
 
 export const getMaintenanceById = asyncHandler(async (req, res) => {
   const log = await maintenanceService.getMaintenanceById(parseInt(req.params.id));
-  return new ApiResponse(HTTP_STATUS.OK, 'Maintenance log fetched.', log).send(res);
+  return new ApiResponse(HTTP_STATUS.OK, 'Maintenance record fetched.', log).send(res);
 });
 
 export const createMaintenance = asyncHandler(async (req, res) => {
@@ -21,10 +21,15 @@ export const createMaintenance = asyncHandler(async (req, res) => {
 
 export const updateMaintenance = asyncHandler(async (req, res) => {
   const log = await maintenanceService.updateMaintenance(parseInt(req.params.id), req.body);
-  return new ApiResponse(HTTP_STATUS.OK, MESSAGES.MAINTENANCE_UPDATED, log).send(res);
+  return new ApiResponse(HTTP_STATUS.OK, 'Maintenance record updated.', log).send(res);
 });
 
 export const closeMaintenance = asyncHandler(async (req, res) => {
   const log = await maintenanceService.closeMaintenance(parseInt(req.params.id), req.body);
   return new ApiResponse(HTTP_STATUS.OK, MESSAGES.MAINTENANCE_CLOSED, log).send(res);
+});
+
+export const deleteMaintenance = asyncHandler(async (req, res) => {
+  await maintenanceService.deleteMaintenance(parseInt(req.params.id));
+  return new ApiResponse(HTTP_STATUS.OK, 'Maintenance record deleted successfully.').send(res);
 });

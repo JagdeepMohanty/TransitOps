@@ -7,4 +7,5 @@ export const maintenanceApi = {
   create: (payload)       => api.post(BASE, payload),
   update: (id, payload)   => api.put(`${BASE}/${id}`, payload),
   close:  (id, payload)   => api.post(`${BASE}/${id}/close`, payload),
+  remove: (id)            => api.delete(`${BASE}/${id}`),
 }

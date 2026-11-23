@@ -1,5 +1,5 @@
 import { verifyJWT } from '../utils/jwt.js';
-import { userExists } from '../repositories/user.repository.js';
+import { findUserById } from '../repositories/user.repository.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../constants/httpStatus.js';
 
@@ -22,13 +22,21 @@ export const authenticate = async (req, res, next) => {
       throw new ApiError(HTTP_STATUS.UNAUTHORIZED, message);
     }
 
-    // Confirm the user still exists in the database
-    const exists = await userExists(payload.userId);
-    if (!exists) {
+    // Confirm the user exists and is approved in the database
+    const user = await findUserById(payload.userId);
+    if (!user) {
       throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'User no longer exists');
     }
 
-    req.user = payload; // { userId, email, role }
+    if (user.approvalStatus !== 'APPROVED') {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Your account is not approved for system access');
+    }
+
+    req.user = {
+      userId: user.id,
+      email: user.email,
+      role: user.role?.name ?? null,
+    };
     next();
   } catch (err) {
     next(err);

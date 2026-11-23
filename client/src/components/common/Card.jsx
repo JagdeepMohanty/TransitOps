@@ -1,18 +1,18 @@
 import { cn } from '@/utils'
 
 const VARIANTS = {
-  default:  'bg-white border border-slate-100/80 shadow-card',
-  flat:     'bg-white border border-slate-200',
+  default:  'bg-white border border-slate-200/90 shadow-xs',
+  flat:     'bg-white border border-slate-200/90',
   bordered: 'bg-white border-2 border-slate-200',
-  elevated: 'bg-white border border-slate-100/80 shadow-card-lg',
-  ghost:    'bg-surface-soft border border-slate-100',
-  gradient: 'bg-gradient-to-br from-brand-600 to-brand-800 border-0 text-white',
+  elevated: 'bg-white border border-slate-200/90 shadow-card',
+  ghost:    'bg-slate-50 border border-slate-200/60',
+  gradient: 'bg-slate-900 border border-slate-800 text-white',
 }
 
 const PADDING = {
   none: '',
   xs:   'p-3',
-  sm:   'p-4',
+  sm:   'p-3.5',
   md:   'p-5',
   lg:   'p-6',
   xl:   'p-8',
@@ -35,40 +35,26 @@ export default function Card({
     <div
       onClick={onClick}
       className={cn(
-        'rounded-2xl overflow-hidden',
+        'rounded-xl overflow-hidden',
         VARIANTS[variant],
         clickable && [
           'cursor-pointer',
-          'transition-all duration-200',
-          'hover:-translate-y-0.5 hover:shadow-card-md',
-          'active:translate-y-0 active:shadow-card',
+          'transition-all duration-150',
+          'hover:border-slate-300 hover:shadow-card',
+          'active:bg-slate-50/50',
         ],
         className,
       )}
       {...props}
     >
       {header && (
-        <div className={cn(
-          'border-b',
-          variant === 'gradient' ? 'border-white/10' : 'border-slate-100',
-          PADDING[padding],
-        )}>
+        <div className="border-b border-slate-100 bg-slate-50/50">
           {header}
         </div>
       )}
-
-      <div className={cn(
-        (header || footer) && padding !== 'none' ? PADDING[padding] : !header && !footer ? PADDING[padding] : '',
-      )}>
-        {children}
-      </div>
-
+      {padding === 'none' ? children : <div className={PADDING[padding]}>{children}</div>}
       {footer && (
-        <div className={cn(
-          'border-t',
-          variant === 'gradient' ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50/60',
-          PADDING[padding],
-        )}>
+        <div className="border-t border-slate-100 px-5 py-3 bg-slate-50/50">
           {footer}
         </div>
       )}
@@ -76,23 +62,14 @@ export default function Card({
   )
 }
 
-export function CardHeader({ title, subtitle, actions, icon: Icon, iconBg = 'bg-brand-50' }) {
+export function CardHeader({ title, subtitle, action, className }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex items-start gap-3 min-w-0">
-        {Icon && (
-          <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', iconBg)}>
-            <Icon size={17} className="text-brand-600" />
-          </div>
-        )}
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-900 leading-tight">{title}</p>
-          {subtitle && <p className="text-xs text-slate-500 mt-0.5 leading-snug">{subtitle}</p>}
-        </div>
+    <div className={cn('flex items-center justify-between px-5 py-3.5', className)}>
+      <div>
+        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
-      {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
-      )}
+      {action && <div>{action}</div>}
     </div>
   )
 }

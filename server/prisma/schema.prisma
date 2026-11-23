@@ -52,6 +52,12 @@ enum ExpenseType {
   OTHER
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model Role {
@@ -64,15 +70,24 @@ model Role {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String
-  email        String   @unique
-  passwordHash String
-  roleId       Int
-  role         Role     @relation(fields: [roleId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int            @id @default(autoincrement())
+  name            String
+  email           String         @unique
+  passwordHash    String
+  roleId          Int?
+  role            Role?          @relation(fields: [roleId], references: [id])
+  requestedRole   String?
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  approvedById    Int?
+  approvedBy      User?          @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvedUsers   User[]         @relation("UserApprovals")
+  rejectionReason String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
+  @@index([approvalStatus])
   @@map("users")
 }
 

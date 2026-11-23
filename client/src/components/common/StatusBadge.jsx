@@ -3,19 +3,19 @@ import { cn } from '@/utils'
 const PRESETS = {
   // ── Backend trip statuses (UPPER_SNAKE_CASE) ──────────────────────────────
   DRAFT:       { label: 'Draft',       dot: 'bg-slate-400',   pill: 'bg-slate-100  text-slate-600  ring-slate-200/80'   },
-  DISPATCHED:  { label: 'Dispatched',  dot: 'bg-amber-400',   pill: 'bg-amber-50   text-amber-700  ring-amber-200/80'   },
+  DISPATCHED:  { label: 'Dispatched',  dot: 'bg-blue-500',    pill: 'bg-blue-50   text-blue-700  ring-blue-200/90'   },
   COMPLETED:   { label: 'Completed',   dot: 'bg-emerald-400', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-200/80' },
-  CANCELLED:   { label: 'Cancelled',   dot: 'bg-red-400',     pill: 'bg-red-50     text-red-700    ring-red-200/80'     },
+  CANCELLED:   { label: 'Cancelled',   dot: 'bg-rose-500',    pill: 'bg-rose-50   text-rose-700  ring-rose-200/90'     },
   // ── Backend vehicle statuses ───────────────────────────────────────────────
   AVAILABLE:   { label: 'Available',   dot: 'bg-emerald-400', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-200/80' },
-  ON_TRIP:     { label: 'On Trip',     dot: 'bg-amber-400',   pill: 'bg-amber-50   text-amber-700  ring-amber-200/80'   },
-  IN_SHOP:     { label: 'In Shop',     dot: 'bg-blue-400',    pill: 'bg-blue-50    text-blue-700   ring-blue-200/80'    },
+  ON_TRIP:     { label: 'On Trip',     dot: 'bg-blue-500',    pill: 'bg-blue-50   text-blue-700  ring-blue-200/90'   },
+  IN_SHOP:     { label: 'In Shop',     dot: 'bg-amber-500',   pill: 'bg-amber-50  text-amber-700 ring-amber-200/90'    },
   RETIRED:     { label: 'Retired',     dot: 'bg-slate-300',   pill: 'bg-slate-100  text-slate-500  ring-slate-200/80'   },
   // ── Backend maintenance statuses ──────────────────────────────────────────
   ACTIVE:      { label: 'Active',      dot: 'bg-amber-400',   pill: 'bg-amber-50   text-amber-700  ring-amber-200/80'   },
   // ── Backend driver statuses ───────────────────────────────────────────────
   OFF_DUTY:    { label: 'Off Duty',    dot: 'bg-slate-300',   pill: 'bg-slate-100  text-slate-500  ring-slate-200/80'   },
-  SUSPENDED:   { label: 'Suspended',   dot: 'bg-red-400',     pill: 'bg-red-50     text-red-700    ring-red-200/80'     },
+  SUSPENDED:   { label: 'Suspended',   dot: 'bg-rose-500',    pill: 'bg-rose-50   text-rose-700  ring-rose-200/90'     },
   // ── Legacy lowercase presets (kept for backward compat) ───────────────────
   scheduled:   { label: 'Scheduled',   dot: 'bg-blue-400',    pill: 'bg-blue-50    text-blue-700   ring-blue-200/80'   },
   in_progress: { label: 'In Progress', dot: 'bg-amber-400',   pill: 'bg-amber-50   text-amber-700  ring-amber-200/80'  },
@@ -32,9 +32,9 @@ const PRESETS = {
 }
 
 const SIZES = {
-  sm: 'text-[10px] px-2   py-0.5 gap-1   rounded-full',
-  md: 'text-xs     px-2.5 py-1   gap-1.5 rounded-full',
-  lg: 'text-sm     px-3   py-1.5 gap-2   rounded-full',
+  sm: 'text-[11px] px-2 py-0.5 gap-1.5 rounded-md font-medium',
+  md: 'text-xs px-2.5 py-1 gap-1.5 rounded-md font-medium',
+  lg: 'text-sm px-3 py-1.5 gap-2 rounded-md font-medium',
 }
 
 const LIVE_STATUSES = new Set(['in_progress', 'active'])

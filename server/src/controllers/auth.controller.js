@@ -9,6 +9,15 @@ export const login = asyncHandler(async (req, res) => {
   return new ApiResponse(HTTP_STATUS.OK, MESSAGES.LOGIN_SUCCESS, result).send(res);
 });
 
+export const register = asyncHandler(async (req, res) => {
+  const result = await authService.register(req.body);
+  return new ApiResponse(
+    HTTP_STATUS.CREATED,
+    'Registration submitted successfully. Your account is awaiting administrator approval.',
+    result
+  ).send(res);
+});
+
 export const me = asyncHandler(async (req, res) => {
   const user = await authService.getCurrentUser(req.user.userId);
   return new ApiResponse(HTTP_STATUS.OK, 'User retrieved successfully', user).send(res);

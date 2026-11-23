@@ -9,7 +9,7 @@ export default function PageHeader({
   badge,
   back = false,
   backPath,
-  divider = false,
+  divider = true,
   className,
 }) {
   const navigate = useNavigate()
@@ -18,7 +18,7 @@ export default function PageHeader({
   return (
     <div className={cn(
       'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
-      divider && 'pb-5 border-b border-slate-200',
+      divider && 'pb-4 border-b border-slate-200/80',
       className,
     )}>
       {/* Left: back + title */}
@@ -26,7 +26,7 @@ export default function PageHeader({
         {back && (
           <button
             onClick={handleBack}
-            className="mt-0.5 p-1.5 -ml-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+            className="mt-0.5 p-1.5 -ml-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
             aria-label="Go back"
           >
             <ArrowLeft size={18} />
@@ -34,16 +34,16 @@ export default function PageHeader({
         )}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl font-bold text-slate-900 leading-tight">{title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">{title}</h1>
             {badge && <span>{badge}</span>}
           </div>
           {subtitle && (
-            <p className="text-sm text-slate-500 mt-0.5 leading-snug">{subtitle}</p>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-snug">{subtitle}</p>
           )}
         </div>
       </div>
 
-      {/* Right: actions — full-width row on mobile, shrink on sm+ */}
+      {/* Right: actions */}
       {actions && (
         <div className="flex items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
           {actions}

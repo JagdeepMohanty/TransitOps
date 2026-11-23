@@ -116,8 +116,8 @@ async function main() {
     const passwordHash = await bcrypt.hash(u.password, SALT_ROUNDS);
     await prisma.user.upsert({
       where:  { email: u.email },
-      update: { name: u.name, passwordHash, roleId: role.id },
-      create: { name: u.name, email: u.email, passwordHash, roleId: role.id },
+      update: { name: u.name, passwordHash, roleId: role.id, approvalStatus: 'APPROVED', requestedRole: u.role, approvedAt: new Date() },
+      create: { name: u.name, email: u.email, passwordHash, roleId: role.id, approvalStatus: 'APPROVED', requestedRole: u.role, approvedAt: new Date() },
     });
     console.log(`✅  User seeded: ${u.email} (${u.role})`);
   }
@@ -146,16 +146,22 @@ async function main() {
     console.log(`✅  Driver seeded: ${d.name} (${d.licenseNumber})`);
   }
 
-  // ── 5. Seed sample trips (idempotent via source+destination+vehicleId check) ─
+  // ── 5. Seed sample trips ─────────────────────────────────────────────────────
   const vehicle1 = await prisma.vehicle.findUnique({ where: { registrationNumber: 'GJ01AB1001' } });
-  const driver1  = await prisma.driver.findUnique({ where: { licenseNumber: 'DL0120230001234' } });
+  const vehicle2 = await prisma.vehicle.findUnique({ where: { registrationNumber: 'GJ05CD2205' } });
+  const vehicle3 = await prisma.vehicle.findUnique({ where: { registrationNumber: 'MH12EF4508' } });
 
+  const driver1  = await prisma.driver.findUnique({ where: { licenseNumber: 'DL0120230001234' } });
+  const driver2  = await prisma.driver.findUnique({ where: { licenseNumber: 'GJ0120240005678' } });
+  const driver3  = await prisma.driver.findUnique({ where: { licenseNumber: 'MH1220220009012' } });
+
+  let trip1;
   if (vehicle1 && driver1) {
-    const existingTrip = await prisma.trip.findFirst({
+    trip1 = await prisma.trip.findFirst({
       where: { vehicleId: vehicle1.id, driverId: driver1.id, source: 'Ahmedabad', destination: 'Mumbai' },
     });
-    if (!existingTrip) {
-      await prisma.trip.create({
+    if (!trip1) {
+      trip1 = await prisma.trip.create({
         data: {
           source:          'Ahmedabad',
           destination:     'Mumbai',
@@ -170,17 +176,37 @@ async function main() {
           completedAt:     new Date('2024-09-10T16:30:00Z'),
         },
       });
-      console.log('✅  Sample trip seeded: Ahmedabad → Mumbai');
+      console.log('✅  Sample trip seeded: Ahmedabad → Mumbai (COMPLETED)');
     }
   }
 
-  // ── 6. Seed sample maintenance record ────────────────────────────────────────
-  const vehicle2 = await prisma.vehicle.findUnique({ where: { registrationNumber: 'GJ05CD2205' } });
+  if (vehicle2 && driver2) {
+    const trip2 = await prisma.trip.findFirst({
+      where: { source: 'Surat', destination: 'Pune' },
+    });
+    if (!trip2) {
+      await prisma.trip.create({
+        data: {
+          source:          'Surat',
+          destination:     'Pune',
+          cargoWeight:     12000,
+          plannedDistance: 410,
+          revenue:         32000,
+          status:          'DRAFT',
+          vehicleId:       vehicle2.id,
+          driverId:        driver2.id,
+        },
+      });
+      console.log('✅  Sample trip seeded: Surat → Pune (DRAFT)');
+    }
+  }
+
+  // ── 6. Seed sample maintenance records ───────────────────────────────────────
   if (vehicle2) {
-    const existingMaint = await prisma.maintenance.findFirst({
+    const existingMaint1 = await prisma.maintenance.findFirst({
       where: { vehicleId: vehicle2.id, maintenanceType: 'Oil Change' },
     });
-    if (!existingMaint) {
+    if (!existingMaint1) {
       await prisma.maintenance.create({
         data: {
           maintenanceType: 'Oil Change',
@@ -193,12 +219,12 @@ async function main() {
           vehicleId:       vehicle2.id,
         },
       });
-      console.log('✅  Sample maintenance seeded: GJ05CD2205 — Oil Change');
+      console.log('✅  Sample maintenance seeded: GJ05CD2205 — Oil Change (COMPLETED)');
     }
   }
 
-  // ── 7. Seed sample fuel log ───────────────────────────────────────────────────
-  if (vehicle1 && driver1) {
+  // ── 7. Seed sample fuel logs ─────────────────────────────────────────────────
+  if (vehicle1) {
     const existingFuel = await prisma.fuelLog.findFirst({ where: { vehicleId: vehicle1.id } });
     if (!existingFuel) {
       await prisma.fuelLog.create({
@@ -208,9 +234,74 @@ async function main() {
           logDate:   new Date('2024-09-10'),
           odometer:  48200,
           vehicleId: vehicle1.id,
+          tripId:    trip1 ? trip1.id : undefined,
         },
       });
       console.log('✅  Sample fuel log seeded: GJ01AB1001');
+    }
+  }
+
+  if (vehicle3) {
+    const existingFuel2 = await prisma.fuelLog.findFirst({ where: { vehicleId: vehicle3.id } });
+    if (!existingFuel2) {
+      await prisma.fuelLog.create({
+        data: {
+          liters:    85,
+          cost:      7650,
+          logDate:   new Date('2024-09-12'),
+          odometer:  21500,
+          vehicleId: vehicle3.id,
+        },
+      });
+      console.log('✅  Sample fuel log seeded: MH12EF4508');
+    }
+  }
+
+  // ── 8. Seed sample expenses ──────────────────────────────────────────────────
+  if (vehicle1) {
+    const existingExp1 = await prisma.expense.findFirst({ where: { vehicleId: vehicle1.id, type: 'TOLL' } });
+    if (!existingExp1) {
+      await prisma.expense.create({
+        data: {
+          vehicleId:   vehicle1.id,
+          tripId:      trip1 ? trip1.id : undefined,
+          type:        'TOLL',
+          amount:      1450,
+          description: 'NH48 FASTag Toll Charges (Vadodara - Mumbai)',
+          expenseDate: new Date('2024-09-10'),
+        },
+      });
+      console.log('✅  Sample expense seeded: Toll ₹1,450');
+    }
+
+    const existingExp2 = await prisma.expense.findFirst({ where: { vehicleId: vehicle1.id, type: 'PARKING' } });
+    if (!existingExp2) {
+      await prisma.expense.create({
+        data: {
+          vehicleId:   vehicle1.id,
+          type:        'PARKING',
+          amount:      400,
+          description: 'JNPT Port Logistics Yard Overnight Parking',
+          expenseDate: new Date('2024-09-11'),
+        },
+      });
+      console.log('✅  Sample expense seeded: Parking ₹400');
+    }
+  }
+
+  if (vehicle2) {
+    const existingExp3 = await prisma.expense.findFirst({ where: { vehicleId: vehicle2.id, type: 'OTHER' } });
+    if (!existingExp3) {
+      await prisma.expense.create({
+        data: {
+          vehicleId:   vehicle2.id,
+          type:        'OTHER',
+          amount:      850,
+          description: 'Pollution Under Control (PUC) Certificate & Weighbridge Fee',
+          expenseDate: new Date('2024-09-08'),
+        },
+      });
+      console.log('✅  Sample expense seeded: Other ₹850');
     }
   }
 }

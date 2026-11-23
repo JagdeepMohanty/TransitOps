@@ -16,6 +16,8 @@ export const create = (data) => prisma.maintenance.create({ data, include });
 
 export const update = (id, data) => prisma.maintenance.update({ where: { id }, data, include });
 
+export const remove = (id) => prisma.maintenance.delete({ where: { id } });
+
 export const sumByVehicle = (vehicleId) =>
   prisma.maintenance.aggregate({
     where: { vehicleId },

@@ -1,14 +1,11 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Search, ChevronUp, ChevronDown, ChevronsUpDown,
-  MoreHorizontal, Edit2, Trash2, UserX, UserCheck2,
-  ChevronLeft, ChevronRight, Filter, UserPlus, Download,
-  Mail, Phone, MapPin,
+  Edit2, Trash2, UserCheck2, CheckCircle2, XCircle,
+  ChevronLeft, ChevronRight, UserPlus, RefreshCw,
+  Clock, Shield, ShieldCheck, AlertCircle,
 } from 'lucide-react';
-import { USERS_DATA } from '@utils/settingsMockData';
-import RoleBadge from './RoleBadge';
-import StatusBadge from './StatusBadge';
 
 const AVATAR_GRADIENTS = [
   'from-blue-500 to-violet-600',
@@ -21,34 +18,75 @@ const AVATAR_GRADIENTS = [
   'from-teal-500 to-blue-500',
 ];
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 8;
 
-export default function UserManagementTable({ onEdit, onDelete, onAdd }) {
-  const [search, setSearch]         = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatus]   = useState('all');
-  const [sortKey, setSortKey]       = useState('name');
-  const [sortDir, setSortDir]       = useState('asc');
-  const [page, setPage]             = useState(1);
-  const [openMenu, setOpenMenu]     = useState(null);
-  const [expandedRow, setExpandedRow] = useState(null);
+export default function UserManagementTable({
+  users = [],
+  roles = [],
+  loading = false,
+  error = null,
+  onRefresh,
+  onEdit,
+  onDelete,
+  onAdd,
+  onApprove,
+  onReject,
+  onChangeRole,
+}) {
+  const [search, setSearch]             = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  const [roleFilter, setRoleFilter]     = useState('all');
+  const [sortKey, setSortKey]           = useState('createdAt');
+  const [sortDir, setSortDir]           = useState('desc');
+  const [page, setPage]                 = useState(1);
+
+  // Counts
+  const pendingCount  = useMemo(() => users.filter(u => u.approvalStatus === 'PENDING').length, [users]);
+  const approvedCount = useMemo(() => users.filter(u => u.approvalStatus === 'APPROVED').length, [users]);
+  const rejectedCount = useMemo(() => users.filter(u => u.approvalStatus === 'REJECTED').length, [users]);
 
   const filtered = useMemo(() => {
-    let d = USERS_DATA;
-    if (search)               d = d.filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()));
-    if (roleFilter !== 'all') d = d.filter(u => u.role === roleFilter);
-    if (statusFilter !== 'all') d = d.filter(u => u.status === statusFilter);
+    let d = Array.isArray(users) ? users : [];
+
+    // Filter by Approval Status
+    if (statusFilter !== 'all') {
+      d = d.filter(u => (u.approvalStatus || 'PENDING') === statusFilter);
+    }
+
+    // Filter by Search Query
+    if (search) {
+      const q = search.toLowerCase();
+      d = d.filter(u =>
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.requestedRole?.toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by Assigned Role
+    if (roleFilter !== 'all') {
+      d = d.filter(u => {
+        const rName = u.role?.name || u.role;
+        return rName === roleFilter;
+      });
+    }
+
+    // Sort
     d = [...d].sort((a, b) => {
-      const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      const av = a[sortKey] ?? '';
+      const bv = b[sortKey] ?? '';
+      return sortDir === 'asc'
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
     });
+
     return d;
-  }, [search, roleFilter, statusFilter, sortKey, sortDir]);
+  }, [users, search, statusFilter, roleFilter, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged      = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleSort = key => {
+  const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
     setPage(1);
@@ -61,9 +99,10 @@ export default function UserManagementTable({ onEdit, onDelete, onAdd }) {
       : <ChevronDown className="w-3 h-3 text-primary" />;
   };
 
-  const activeCount    = USERS_DATA.filter(u => u.status === 'active').length;
-  const pendingCount   = USERS_DATA.filter(u => u.status === 'pending').length;
-  const suspendedCount = USERS_DATA.filter(u => u.status === 'suspended').length;
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name.trim().split(/\s+/).map(n => n[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'U';
+  };
 
   return (
     <motion.div
@@ -80,255 +119,327 @@ export default function UserManagementTable({ onEdit, onDelete, onAdd }) {
             <UserCheck2 className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-content-primary">User Management</h3>
-            <p className="text-xs text-content-muted">Manage team members, roles and access control</p>
+            <h3 className="text-sm font-bold text-content-primary">User Registration & Approvals</h3>
+            <p className="text-xs text-content-muted">Manage user accounts, review pending signups, and grant RBAC access</p>
           </div>
         </div>
+
         <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
-          <span className="px-2.5 py-1 rounded-full bg-success/10 border border-success/20 text-[10px] font-black text-success">{activeCount} Active</span>
-          <span className="px-2.5 py-1 rounded-full bg-warning/10 border border-warning/20 text-[10px] font-black text-warning">{pendingCount} Pending</span>
-          <span className="px-2.5 py-1 rounded-full bg-danger/10 border border-danger/20 text-[10px] font-black text-danger">{suspendedCount} Suspended</span>
+          {pendingCount > 0 && (
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11px] font-bold text-amber-500 animate-pulse">
+              <Clock size={12} /> {pendingCount} Pending Approval{pendingCount > 1 ? 's' : ''}
+            </span>
+          )}
+          <span className="px-2.5 py-1 rounded-full bg-success/10 border border-success/20 text-[10px] font-black text-success">
+            {approvedCount} Active Users
+          </span>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="p-1.5 rounded-xl border border-border/60 text-content-muted hover:text-content-primary hover:bg-bg-base/60 transition-colors"
+              title="Refresh users"
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            </button>
+          )}
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             onClick={onAdd}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-hover text-white text-[10px] font-black shadow-[0_0_16px_rgba(59,130,246,0.3)] hover:shadow-[0_0_24px_rgba(59,130,246,0.45)] transition-all duration-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-hover text-white text-[10px] font-black shadow-[0_0_16px_rgba(59,130,246,0.3)] hover:shadow-[0_0_24px_rgba(59,130,246,0.45)] transition-all"
           >
-            <UserPlus className="w-3 h-3" /> Add User
+            <UserPlus className="w-3.5 h-3.5" /> Add Direct User
           </motion.button>
         </div>
       </div>
 
-      {/* ── Toolbar ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-6 py-3.5 border-b border-border/40 bg-bg-base/20">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-content-muted" />
+      {/* ── Status Tab Strip ── */}
+      <div className="flex items-center gap-2 px-6 pt-3 pb-2 border-b border-border/30 bg-bg-base/20 overflow-x-auto text-xs">
+        <button
+          onClick={() => { setStatusFilter('all'); setPage(1); }}
+          className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+            statusFilter === 'all'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-content-muted hover:text-content-primary hover:bg-bg-card'
+          }`}
+        >
+          All Users ({users.length})
+        </button>
+
+        <button
+          onClick={() => { setStatusFilter('PENDING'); setPage(1); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
+            statusFilter === 'PENDING'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'text-amber-500 hover:bg-amber-500/10'
+          }`}
+        >
+          <Clock size={13} />
+          Pending Approvals
+          {pendingCount > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              statusFilter === 'PENDING' ? 'bg-white text-amber-700' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => { setStatusFilter('APPROVED'); setPage(1); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
+            statusFilter === 'APPROVED'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-emerald-500 hover:bg-emerald-500/10'
+          }`}
+        >
+          <CheckCircle2 size={13} />
+          Approved ({approvedCount})
+        </button>
+
+        <button
+          onClick={() => { setStatusFilter('REJECTED'); setPage(1); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
+            statusFilter === 'REJECTED'
+              ? 'bg-rose-600 text-white shadow-sm'
+              : 'text-rose-500 hover:bg-rose-500/10'
+          }`}
+        >
+          <XCircle size={13} />
+          Rejected ({rejectedCount})
+        </button>
+      </div>
+
+      {/* ── Search & Role Filter Bar ── */}
+      <div className="flex flex-col sm:flex-row gap-3 px-6 py-3 border-b border-border/40 bg-bg-base/30">
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-content-disabled" />
           <input
+            type="text"
+            placeholder="Search by name, email, or requested role…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by name or email…"
-            className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-xl text-xs text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
+            className="w-full pl-9 pr-3 py-1.5 text-xs bg-bg-card border border-border/60 rounded-xl text-content-primary placeholder-content-disabled focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
           />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-2.5 py-2 bg-bg-secondary border border-border rounded-xl text-xs text-content-muted">
-            <Filter className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Filter</span>
-          </div>
+        <div className="flex items-center gap-2">
           <select
             value={roleFilter}
             onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2 bg-bg-secondary border border-border rounded-xl text-xs text-content-secondary focus:outline-none focus:border-primary/60 transition-all cursor-pointer"
+            className="px-2.5 py-1.5 text-xs bg-bg-card border border-border/60 rounded-xl text-content-primary focus:outline-none focus:border-primary/50 transition-all"
           >
-            <option value="all">All Roles</option>
-            <option value="administrator">Administrator</option>
-            <option value="fleet_manager">Fleet Manager</option>
-            <option value="dispatcher">Dispatcher</option>
-            <option value="safety_officer">Safety Officer</option>
-            <option value="financial_analyst">Financial Analyst</option>
-            <option value="driver">Driver</option>
+            <option value="all">All Assigned Roles</option>
+            <option value="FLEET_MANAGER">Fleet Manager</option>
+            <option value="DISPATCHER">Dispatcher</option>
+            <option value="SAFETY_OFFICER">Safety Officer</option>
+            <option value="FINANCIAL_ANALYST">Financial Analyst</option>
           </select>
-          <select
-            value={statusFilter}
-            onChange={e => { setStatus(e.target.value); setPage(1); }}
-            className="px-3 py-2 bg-bg-secondary border border-border rounded-xl text-xs text-content-secondary focus:outline-none focus:border-primary/60 transition-all cursor-pointer"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="pending">Pending</option>
-            <option value="suspended">Suspended</option>
-          </select>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-bg-secondary border border-border rounded-xl text-xs text-content-muted hover:text-content-primary hover:border-border-strong transition-all">
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
         </div>
       </div>
 
       {/* ── Table ── */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px]">
-          <thead className="sticky top-0 z-10 bg-bg-base/95 backdrop-blur-sm">
-            <tr className="border-b border-border/50">
-              {[
-                { key: 'name',       label: 'User'       },
-                { key: 'role',       label: 'Role'       },
-                { key: 'department', label: 'Department' },
-                { key: 'status',     label: 'Status'     },
-                { key: 'lastLogin',  label: 'Last Login' },
-              ].map(col => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className="px-5 py-3 text-left text-[10px] font-black text-content-muted uppercase tracking-widest cursor-pointer hover:text-content-secondary select-none whitespace-nowrap transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    {col.label}
-                    <SortIcon col={col.key} />
-                  </div>
-                </th>
-              ))}
-              <th className="px-5 py-3 text-left text-[10px] font-black text-content-muted uppercase tracking-widest">Actions</th>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-border/40 bg-bg-base/50 text-[10px] font-black text-content-disabled uppercase tracking-widest">
+              <th className="px-5 py-3 cursor-pointer select-none" onClick={() => handleSort('name')}>
+                <div className="flex items-center gap-1.5">User / Contact <SortIcon col="name" /></div>
+              </th>
+              <th className="px-5 py-3">Approval Status</th>
+              <th className="px-5 py-3">Requested Role</th>
+              <th className="px-5 py-3">Assigned Role</th>
+              <th className="px-5 py-3 cursor-pointer select-none" onClick={() => handleSort('createdAt')}>
+                <div className="flex items-center gap-1.5">Registration Date <SortIcon col="createdAt" /></div>
+              </th>
+              <th className="px-5 py-3 text-right">Approval Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/25">
-            {paged.length === 0 ? (
+          <tbody className="divide-y divide-border/30 text-xs">
+            {loading ? (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-content-muted">
-                  No users match your filters.
+                <td colSpan={6} className="px-5 py-8 text-center text-content-muted">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span>Loading database users…</span>
+                  </div>
                 </td>
               </tr>
-            ) : paged.map((user, idx) => (
-              <>
-                <motion.tr
-                  key={user.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.04 }}
-                  onClick={() => setExpandedRow(expandedRow === user.id ? null : user.id)}
-                  className="hover:bg-primary/[0.04] transition-colors duration-150 group cursor-pointer"
-                >
-                  {/* Avatar + Name + Email */}
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all duration-200`}>
-                        <span className="text-xs font-black text-white">{user.avatar}</span>
+            ) : error ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-6 text-center text-rose-500">
+                  {error}
+                </td>
+              </tr>
+            ) : paged.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-content-muted">
+                  No accounts found matching your selected filters.
+                </td>
+              </tr>
+            ) : (
+              paged.map((user, idx) => {
+                const rName = user.role?.name || user.role || null;
+                const status = user.approvalStatus || 'PENDING';
+
+                return (
+                  <tr
+                    key={user.id}
+                    className="hover:bg-primary/[0.04] transition-colors duration-150 group"
+                  >
+                    {/* User Info */}
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0 shadow-sm`}>
+                          <span className="text-xs font-black text-white">{getInitials(user.name)}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-content-primary truncate group-hover:text-primary transition-colors">{user.name}</p>
+                          <p className="text-[11px] text-content-muted truncate">{user.email}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-content-primary truncate group-hover:text-primary transition-colors">{user.name}</p>
-                        <p className="text-[11px] text-content-muted truncate">{user.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4"><RoleBadge role={user.role} /></td>
-                  <td className="px-5 py-4">
-                    <span className="text-xs text-content-secondary bg-bg-base/80 px-2.5 py-1 rounded-lg border border-border/50 font-semibold">
-                      {user.department}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4"><StatusBadge status={user.status} /></td>
-                  <td className="px-5 py-4">
-                    <span className="text-xs text-content-muted">{user.lastLogin}</span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="relative">
-                      <button
-                        onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === user.id ? null : user.id); }}
-                        className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-bg-hover transition-all duration-150 opacity-0 group-hover:opacity-100"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                      <AnimatePresence>
-                        {openMenu === user.id && (
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="px-5 py-3.5">
+                      {status === 'APPROVED' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          <CheckCircle2 size={11} /> APPROVED
+                        </span>
+                      ) : status === 'REJECTED' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                          <XCircle size={11} /> REJECTED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 animate-pulse">
+                          <Clock size={11} /> PENDING
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Requested Role */}
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs font-medium text-content-muted">
+                        {user.requestedRole || '—'}
+                      </span>
+                    </td>
+
+                    {/* Assigned Role */}
+                    <td className="px-5 py-3.5">
+                      {rName ? (
+                        <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                          {rName}
+                        </span>
+                      ) : (
+                        <span className="text-xs italic text-content-disabled">Unassigned</span>
+                      )}
+                    </td>
+
+                    {/* Created Date */}
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs text-content-muted font-mono">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', {
+                          day: '2-digit', month: 'short', year: 'numeric'
+                        }) : '—'}
+                      </span>
+                    </td>
+
+                    {/* Action buttons */}
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {status === 'PENDING' ? (
                           <>
-                            <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                              transition={{ duration: 0.15 }}
-                              className="absolute right-0 top-full mt-1 z-50 w-48 bg-bg-card border border-border/80 rounded-xl shadow-modal overflow-hidden"
+                            <button
+                              onClick={() => onApprove && onApprove(user)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors shadow-xs"
+                              title="Approve user registration"
                             >
-                              <div className="px-3 py-2 border-b border-border/50">
-                                <p className="text-[10px] font-black text-content-muted uppercase tracking-wider">Actions for {user.name.split(' ')[0]}</p>
-                              </div>
-                              <button
-                                onClick={() => { onEdit(user); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-content-secondary hover:bg-primary/10 hover:text-primary transition-colors"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" /> Edit User
-                              </button>
-                              <button className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-content-secondary hover:bg-warning/10 hover:text-warning transition-colors">
-                                <UserX className="w-3.5 h-3.5" /> Suspend User
-                              </button>
-                              <div className="border-t border-border/50 my-0.5" />
-                              <button
-                                onClick={() => { onDelete(user); setOpenMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-danger hover:bg-danger/10 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Delete User
-                              </button>
-                            </motion.div>
+                              <CheckCircle2 size={12} /> Approve
+                            </button>
+                            <button
+                              onClick={() => onReject && onReject(user)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] transition-colors"
+                              title="Reject registration"
+                            >
+                              <XCircle size={12} /> Reject
+                            </button>
+                          </>
+                        ) : status === 'REJECTED' ? (
+                          <>
+                            <button
+                              onClick={() => onApprove && onApprove(user)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors"
+                              title="Re-evaluate & approve"
+                            >
+                              <CheckCircle2 size={12} /> Re-approve
+                            </button>
+                            <button
+                              onClick={() => onDelete && onDelete(user)}
+                              className="p-1.5 rounded-lg text-content-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                              title="Delete user"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => onChangeRole && onChangeRole(user)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-[11px] transition-colors"
+                              title="Change user role"
+                            >
+                              <Shield size={12} /> Role
+                            </button>
+                            <button
+                              onClick={() => onEdit && onEdit(user)}
+                              className="p-1.5 rounded-lg text-content-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="Edit user"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => onReject && onReject(user)}
+                              className="p-1.5 rounded-lg text-content-muted hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                              title="Revoke / Suspend access"
+                            >
+                              <XCircle size={13} />
+                            </button>
+                            <button
+                              onClick={() => onDelete && onDelete(user)}
+                              className="p-1.5 rounded-lg text-content-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                              title="Delete user"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </>
                         )}
-                      </AnimatePresence>
-                    </div>
-                  </td>
-                </motion.tr>
-
-                {/* Expanded detail row */}
-                <AnimatePresence>
-                  {expandedRow === user.id && (
-                    <motion.tr
-                      key={`${user.id}-detail`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <td colSpan={6} className="px-5 py-3 bg-primary/[0.03] border-b border-primary/10">
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-content-muted">
-                          {user.phone && (
-                            <span className="flex items-center gap-1.5">
-                              <Phone className="w-3 h-3 text-primary" />
-                              {user.phone}
-                            </span>
-                          )}
-                          {user.location && (
-                            <span className="flex items-center gap-1.5">
-                              <MapPin className="w-3 h-3 text-accent" />
-                              {user.location}
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="w-3 h-3 text-success" />
-                            {user.email}
-                          </span>
-                          <span className="ml-auto text-[10px] text-content-disabled">Joined {user.joined}</span>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  )}
-                </AnimatePresence>
-              </>
-            ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
       {/* ── Pagination ── */}
-      <div className="flex items-center justify-between px-6 py-3.5 border-t border-border/50 bg-bg-base/20">
-        <span className="text-xs text-content-muted">
-          Showing <span className="font-bold text-content-secondary">{Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}</span> of <span className="font-bold text-content-secondary">{filtered.length}</span> users
-        </span>
+      <div className="flex items-center justify-between px-6 py-3 border-t border-border/40 bg-bg-base/30 text-xs text-content-muted">
+        <span>Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} users</span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-bg-hover disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="p-1.5 rounded-lg border border-border/60 hover:bg-bg-card disabled:opacity-40 transition-colors"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-            <button
-              key={p}
-              onClick={() => setPage(p)}
-              className={`w-7 h-7 rounded-lg text-xs font-bold transition-all duration-150 ${
-                p === page
-                  ? 'bg-primary text-white shadow-[0_0_12px_rgba(59,130,246,0.4)]'
-                  : 'text-content-muted hover:text-content-primary hover:bg-bg-hover'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+          <span className="px-2 font-bold text-content-primary">{page} / {totalPages}</span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-bg-hover disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="p-1.5 rounded-lg border border-border/60 hover:bg-bg-card disabled:opacity-40 transition-colors"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

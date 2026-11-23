@@ -7,3 +7,8 @@ export const getKpis = asyncHandler(async (req, res) => {
   const data = await dashboardService.getKpis(req.query);
   return new ApiResponse(HTTP_STATUS.OK, 'KPIs retrieved successfully.', data).send(res);
 });
+
+export const getAnalyticsCharts = asyncHandler(async (req, res) => {
+  const data = await dashboardService.getAnalyticsCharts(req.query);
+  return new ApiResponse(HTTP_STATUS.OK, 'Analytics charts retrieved successfully.', data).send(res);
+});

@@ -9,7 +9,22 @@ export const getFuelLogs = asyncHandler(async (req, res) => {
   return new ApiResponse(HTTP_STATUS.OK, 'Fuel logs fetched.', result).send(res);
 });
 
+export const getFuelLogById = asyncHandler(async (req, res) => {
+  const log = await fuelLogService.getFuelLogById(parseInt(req.params.id, 10));
+  return new ApiResponse(HTTP_STATUS.OK, 'Fuel log fetched.', log).send(res);
+});
+
 export const createFuelLog = asyncHandler(async (req, res) => {
   const log = await fuelLogService.createFuelLog(req.body);
   return new ApiResponse(HTTP_STATUS.CREATED, MESSAGES.FUEL_LOG_CREATED, log).send(res);
+});
+
+export const updateFuelLog = asyncHandler(async (req, res) => {
+  const log = await fuelLogService.updateFuelLog(parseInt(req.params.id, 10), req.body);
+  return new ApiResponse(HTTP_STATUS.OK, 'Fuel log updated successfully.', log).send(res);
+});
+
+export const deleteFuelLog = asyncHandler(async (req, res) => {
+  await fuelLogService.deleteFuelLog(parseInt(req.params.id, 10));
+  return new ApiResponse(HTTP_STATUS.OK, 'Fuel log deleted successfully.').send(res);
 });

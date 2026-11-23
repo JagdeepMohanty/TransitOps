@@ -1,5 +1,1 @@
-import ReportsAnalyticsPage from '@pages/reports/ReportsAnalyticsPage';
-
-export default function ReportsPage() {
-  return <ReportsAnalyticsPage />;
-}
+export { default } from '@/pages/reports/index';

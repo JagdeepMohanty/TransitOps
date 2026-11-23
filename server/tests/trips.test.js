@@ -11,13 +11,14 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../src/config/prisma.js';
 
-const prisma = new PrismaClient();
+
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const BASE = 'http://localhost:5000/api';
+const PORT = process.env.PORT || 5001;
+const BASE = process.env.TEST_API_URL || `http://localhost:${PORT}/api`;
 
 async function req(method, path, body, token) {
   const opts = {

@@ -14,6 +14,10 @@ export const findByVehicle = (vehicleId) =>
 
 export const create = (data) => prisma.fuelLog.create({ data, include });
 
+export const update = (id, data) => prisma.fuelLog.update({ where: { id }, data, include });
+
+export const remove = (id) => prisma.fuelLog.delete({ where: { id } });
+
 export const sumByVehicle = (vehicleId) =>
   prisma.fuelLog.aggregate({
     where: { vehicleId },

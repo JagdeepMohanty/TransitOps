@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Plus, MapPin, User, Truck, RefreshCw, CheckCircle, XCircle, Send, Trash2, ArrowRight, Edit2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, MapPin, User, Truck, RefreshCw, CheckCircle, XCircle, Send, Trash2 } from 'lucide-react'
 
 import PageHeader     from '@/components/layout/PageHeader'
 import Breadcrumb     from '@/components/common/Breadcrumb'
@@ -18,7 +18,6 @@ import PaginationBar  from '@/components/common/PaginationBar'
 import { formatDate, formatCurrency } from '@/utils'
 import { tripsApi }   from '@/api/trips.api'
 
-// ── Status tab config ──────────────────────────────────────────────────────────
 const STATUS_TABS = [
   { key: 'all',        label: 'All'        },
   { key: 'DRAFT',      label: 'Draft'      },
@@ -29,47 +28,42 @@ const STATUS_TABS = [
 
 const PAGE_SIZE = 10
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
 const errMsg = (err) =>
   err?.response?.data?.message ?? err?.message ?? 'Something went wrong.'
 
 export default function TripsPage() {
   const navigate = useNavigate()
 
-  // ── Data state ───────────────────────────────────────────────────────────────
+  // Data state
   const [trips,     setTrips]     = useState([])
   const [total,     setTotal]     = useState(0)
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
 
-  // ── Filter / pagination state ────────────────────────────────────────────────
+  // Filter / pagination state
   const [search,    setSearch]    = useState('')
   const [activeTab, setActiveTab] = useState('all')
   const [page,      setPage]      = useState(1)
 
-  // ── Action modal state ───────────────────────────────────────────────────────
-  const [actionRow,    setActionRow]    = useState(null)   // row being acted on
-  const [actionType,   setActionType]   = useState(null)   // 'dispatch'|'cancel'|'delete'|'complete'
-  const [actionLoading, setActionLoading] = useState(false)
+  // Action modal state
+  const [actionRow,    setActionRow]    = useState(null)
+  const [actionType,   setActionType]   = useState(null)
+  const [actionLoading,setActionLoading]= useState(false)
   const [actionError,  setActionError]  = useState(null)
+  const [completeForm, setCompleteForm] = useState({ endOdometer: '' })
 
-  // Complete form fields
-  const [completeForm, setCompleteForm] = useState({
-    actualDistance: '', finalOdometer: '', fuelConsumed: '', revenue: '',
-  })
-
-  // ── Fetch ────────────────────────────────────────────────────────────────────
   const fetchTrips = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const params = { page, limit: PAGE_SIZE }
       if (activeTab !== 'all') params.status = activeTab
-      if (search.trim())       params.search  = search.trim()
+      if (search.trim())       params.search = search.trim()
+
       const res = await tripsApi.list(params)
-      const d   = res.data.data
-      setTrips(d.data ?? [])
-      setTotal(d.pagination?.total ?? 0)
+      const data = res.data?.data
+      setTrips(Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []))
+      setTotal(data?.total ?? (Array.isArray(data?.data) ? data.data.length : 0))
     } catch (err) {
       setError(errMsg(err))
     } finally {
@@ -77,63 +71,19 @@ export default function TripsPage() {
     }
   }, [page, activeTab, search])
 
-  useEffect(() => { fetchTrips() }, [fetchTrips])
+  useEffect(() => {
+    fetchTrips()
+  }, [fetchTrips])
 
-  // ── Tab counts (derived from current full list — approximate) ────────────────
-  const tabCounts = useMemo(() => {
-    const counts = { all: total }
-    STATUS_TABS.slice(1).forEach(t => {
-      counts[t.key] = trips.filter(r => r.status === t.key).length
-    })
-    return counts
-  }, [trips, total])
-
-  // ── Stats ────────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const totalRevenue = trips
-      .filter(t => t.status === 'COMPLETED')
-      .reduce((s, t) => s + parseFloat(t.revenue ?? 0), 0)
-    return [
-      { label: 'Total',      value: total,                                                    color: 'text-slate-900' },
-      { label: 'Draft',      value: trips.filter(t => t.status === 'DRAFT').length,           color: 'text-slate-600' },
-      { label: 'Dispatched', value: trips.filter(t => t.status === 'DISPATCHED').length,      color: 'text-amber-600' },
-      { label: 'Completed',  value: trips.filter(t => t.status === 'COMPLETED').length,       color: 'text-emerald-600' },
-      { label: 'Cancelled',  value: trips.filter(t => t.status === 'CANCELLED').length,       color: 'text-red-500'   },
-      { label: 'Revenue',    value: formatCurrency(totalRevenue),                             color: 'text-brand-600' },
-    ]
-  }, [trips, total])
-
-  // ── Action handlers ──────────────────────────────────────────────────────────
-  const openAction = (row, type) => {
-    setActionRow(row)
-    setActionType(type)
-    setActionError(null)
-    if (type === 'complete') {
-      setCompleteForm({ actualDistance: '', finalOdometer: '', fuelConsumed: '', revenue: '' })
-    }
-  }
-  const closeAction = () => { setActionRow(null); setActionType(null); setActionError(null) }
-
-  const runAction = async () => {
+  // Handlers for action executions
+  const handleDispatch = async () => {
+    if (!actionRow) return
     setActionLoading(true)
     setActionError(null)
     try {
-      if (actionType === 'dispatch') {
-        await tripsApi.dispatch(actionRow.id)
-      } else if (actionType === 'cancel') {
-        await tripsApi.cancel(actionRow.id)
-      } else if (actionType === 'delete') {
-        await tripsApi.remove(actionRow.id)
-      } else if (actionType === 'complete') {
-        const payload = {
-          actualDistance: parseFloat(completeForm.actualDistance),
-          finalOdometer:  parseFloat(completeForm.finalOdometer),
-          fuelConsumed:   completeForm.fuelConsumed ? parseFloat(completeForm.fuelConsumed) : undefined,
-          revenue:        completeForm.revenue      ? parseFloat(completeForm.revenue)      : undefined,
-        }
-        await tripsApi.complete(actionRow.id, payload)
-      }
-      closeAction()
+      await tripsApi.dispatch(actionRow.id)
+      setActionRow(null)
+      setActionType(null)
       fetchTrips()
     } catch (err) {
       setActionError(errMsg(err))
@@ -142,262 +92,373 @@ export default function TripsPage() {
     }
   }
 
-  // ── Table columns ────────────────────────────────────────────────────────────
-  const COLUMNS = [
-    { key: 'id', label: 'ID', sortable: true, width: '70px',
-      render: (v) => <span className="font-mono text-xs text-brand-600 font-semibold">#{v}</span> },
-    { key: 'source', label: 'Route', sortable: true,
-      render: (_, row) => (
-        <div className="flex items-center gap-1.5">
-          <MapPin size={12} className="text-brand-500 shrink-0" />
-          <span className="text-sm font-medium text-slate-800 truncate max-w-[160px]">
-            {row.source} → {row.destination}
-          </span>
-        </div>
-      )},
-    { key: 'vehicle', label: 'Vehicle',
-      render: (_, row) => (
-        <div className="flex items-center gap-1.5">
-          <Truck size={12} className="text-slate-400 shrink-0" />
-          <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
-            {row.vehicle?.registrationNumber ?? '—'}
-          </span>
-        </div>
-      )},
-    { key: 'driver', label: 'Driver',
-      render: (_, row) => (
-        <div className="flex items-center gap-1.5">
-          <User size={12} className="text-slate-400 shrink-0" />
-          <span className="text-sm text-slate-700">{row.driver?.name ?? '—'}</span>
-        </div>
-      )},
-    { key: 'cargoWeight', label: 'Cargo (kg)', align: 'right',
-      render: (v) => <span className="text-sm text-slate-600">{parseFloat(v ?? 0).toLocaleString('en-IN')}</span> },
-    { key: 'plannedDistance', label: 'Dist (km)', align: 'right',
-      render: (v) => <span className="text-sm text-slate-600">{parseFloat(v ?? 0).toLocaleString('en-IN')}</span> },
-    { key: 'status', label: 'Status', width: '120px',
-      render: (v) => <StatusBadge status={v} /> },
-    { key: 'createdAt', label: 'Created', sortable: true,
-      render: (v) => <span className="text-xs text-slate-400">{formatDate(v)}</span> },
-    { key: '_actions', label: '', width: '120px',
-      render: (_, row) => <ActionButtons row={row} onAction={openAction} /> },
-  ]
+  const handleCancel = async () => {
+    if (!actionRow) return
+    setActionLoading(true)
+    setActionError(null)
+    try {
+      await tripsApi.cancel(actionRow.id)
+      setActionRow(null)
+      setActionType(null)
+      fetchTrips()
+    } catch (err) {
+      setActionError(errMsg(err))
+    } finally {
+      setActionLoading(false)
+    }
+  }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const handleDelete = async () => {
+    if (!actionRow) return
+    setActionLoading(true)
+    setActionError(null)
+    try {
+      await tripsApi.delete(actionRow.id)
+      setActionRow(null)
+      setActionType(null)
+      fetchTrips()
+    } catch (err) {
+      setActionError(errMsg(err))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleComplete = async (e) => {
+    e.preventDefault()
+    if (!actionRow) return
+    setActionLoading(true)
+    setActionError(null)
+    try {
+      await tripsApi.complete(actionRow.id, {
+        endOdometer: Number(completeForm.endOdometer) || undefined,
+      })
+      setActionRow(null)
+      setActionType(null)
+      setCompleteForm({ endOdometer: '' })
+      fetchTrips()
+    } catch (err) {
+      setActionError(errMsg(err))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Derived stats
+  const stats = useMemo(() => {
+    const safeTrips = Array.isArray(trips) ? trips : []
+    const dispatched = safeTrips.filter(t => t.status === 'DISPATCHED').length
+    const completed  = safeTrips.filter(t => t.status === 'COMPLETED').length
+    const draft      = safeTrips.filter(t => t.status === 'DRAFT').length
+    return [
+      { label: 'Total In View',  value: safeTrips.length, sub: 'records' },
+      { label: 'In Transit',     value: dispatched, color: 'text-blue-600', sub: 'active dispatches' },
+      { label: 'Completed',      value: completed,  color: 'text-emerald-600', sub: 'fulfilled' },
+      { label: 'Draft / Plan',   value: draft,      color: 'text-slate-600', sub: 'pending release' },
+    ]
+  }, [trips])
+
+  const columns = useMemo(() => [
+    {
+      key: 'id',
+      label: 'ID',
+      sortable: true,
+      render: (v) => <span className="font-mono font-semibold text-slate-800">#{v}</span>,
+    },
+    {
+      key: 'route',
+      label: 'Transit Corridor (Origin → Destination)',
+      render: (_, row) => (
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-slate-900">{row.source || row.origin || '—'}</span>
+          <span className="text-slate-400 font-mono text-xs">→</span>
+          <span className="font-semibold text-slate-900">{row.destination || '—'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'vehicle',
+      label: 'Vehicle Assigned',
+      render: (_, row) => {
+        const v = row.vehicle
+        if (!v) return <span className="text-slate-400">—</span>
+        return (
+          <div className="flex items-center gap-2">
+            <Truck size={14} className="text-slate-400 shrink-0" />
+            <div>
+              <span className="font-mono text-xs font-semibold text-slate-800 block">{v.registrationNumber}</span>
+              <span className="text-[11px] text-slate-500 block truncate">{v.name || v.model || ''}</span>
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      key: 'driver',
+      label: 'Assigned Driver',
+      render: (_, row) => {
+        const d = row.driver
+        if (!d) return <span className="text-slate-400">—</span>
+        const dName = d.name ?? (d.firstName ? `${d.firstName} ${d.lastName}` : '—')
+        return (
+          <div className="flex items-center gap-2">
+            <User size={14} className="text-slate-400 shrink-0" />
+            <span className="text-xs font-medium text-slate-700">{dName}</span>
+          </div>
+        )
+      },
+    },
+    {
+      key: 'distance',
+      label: 'Distance',
+      align: 'right',
+      render: (v) => <span className="text-xs font-mono text-slate-700">{v ? `${v} km` : '—'}</span>,
+    },
+    {
+      key: 'revenue',
+      label: 'Freight Fee',
+      align: 'right',
+      render: (v) => <span className="text-xs font-semibold text-slate-900">{v ? formatCurrency(v) : '—'}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      align: 'center',
+      render: (v) => <StatusBadge status={v} />,
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (_, row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+          {row.status === 'DRAFT' && (
+            <>
+              <button
+                onClick={() => { setActionRow(row); setActionType('dispatch'); setActionError(null); }}
+                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                title="Dispatch trip"
+              >
+                <Send size={14} />
+              </button>
+              <button
+                onClick={() => navigate(`/trips/${row.id}/edit`)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors"
+                title="Edit draft trip"
+              >
+                <Edit2 size={14} />
+              </button>
+              <button
+                onClick={() => { setActionRow(row); setActionType('delete'); setActionError(null); }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                title="Delete draft trip"
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+
+          {row.status === 'DISPATCHED' && (
+            <>
+              <button
+                onClick={() => {
+                  setActionRow(row)
+                  setActionType('complete')
+                  setActionError(null)
+                  setCompleteForm({ endOdometer: row.startOdometer ? String(row.startOdometer + 100) : '' })
+                }}
+                className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                title="Mark as completed"
+              >
+                <CheckCircle size={14} />
+              </button>
+              <button
+                onClick={() => { setActionRow(row); setActionType('cancel'); setActionError(null); }}
+                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors"
+                title="Cancel trip"
+              >
+                <XCircle size={14} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ], [])
 
   return (
-    <div className="page-container">
-      <Breadcrumb items={[{ label: 'Home', path: '/' }, { label: 'Trips' }]} />
+    <div className="page-container space-y-5">
+      <Breadcrumb />
 
       <PageHeader
-        title="Trips"
-        subtitle="Schedule, dispatch and monitor all fleet trips."
-        badge={<span className="badge bg-brand-100 text-brand-700 ring-1 ring-brand-200">{total} total</span>}
+        title="Trips & Dispatch Console"
+        subtitle="Schedule freight movements, dispatch drivers, and log telemetry completion"
         actions={
-          <>
-            <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchTrips} loading={loading}>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<RefreshCw size={13} />}
+              onClick={fetchTrips}
+              loading={loading}
+            >
               Refresh
             </Button>
-            <Button size="sm" leftIcon={<Plus size={14} />} onClick={() => navigate('/trips/create')}>
-              New Trip
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus size={14} />}
+              onClick={() => navigate('/trips/create')}
+            >
+              Create Trip
             </Button>
-          </>
+          </div>
         }
       />
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <span>{error}</span>
+          <Button size="xs" variant="secondary" onClick={fetchTrips}>Retry</Button>
+        </div>
+      )}
+
+      {/* Stats Row */}
       <StatsGrid stats={stats} />
 
-      <Card padding="none">
-        <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+      {/* Table Container */}
+      <div className="rounded-xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
+        {/* Status Tab Bar */}
+        <div className="px-5 pt-3.5 pb-2.5 border-b border-slate-100 bg-slate-50/50">
           <FilterTabBar
             tabs={STATUS_TABS}
             active={activeTab}
-            onChange={(key) => { setActiveTab(key); setPage(1) }}
-            getCount={(key) => tabCounts[key] ?? 0}
-          />
-          <SearchBar
-            placeholder="Search source, destination…"
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(1) }}
-            className="w-full sm:w-72"
+            onChange={(tab) => { setActiveTab(tab); setPage(1); }}
+            getCount={(key) => key === 'all' ? total : undefined}
           />
         </div>
 
-        {loading ? (
-          <Loader variant="skeleton" lines={8} className="p-5" />
-        ) : error ? (
-          <div className="p-10 text-center">
-            <p className="text-sm text-red-600 mb-3">{error}</p>
-            <Button size="sm" variant="secondary" onClick={fetchTrips}>Retry</Button>
-          </div>
-        ) : (
-          <Table
-            columns={COLUMNS}
-            data={trips}
-            emptyTitle="No trips found"
-            emptyDesc={search || activeTab !== 'all' ? 'Try clearing filters.' : 'Create your first trip to get started.'}
-            emptyAction={!search && activeTab === 'all' && (
-              <Button size="sm" leftIcon={<Plus size={14} />} onClick={() => navigate('/trips/create')}>New Trip</Button>
-            )}
+        {/* Search */}
+        <div className="px-5 py-3 border-b border-slate-100">
+          <SearchBar
+            placeholder="Search by origin, destination, or corridor…"
+            value={search}
+            onChange={(val) => { setSearch(val); setPage(1); }}
+            className="w-full sm:w-80"
           />
-        )}
+        </div>
 
-        {!loading && !error && (
+        {/* Data Table */}
+        <Table
+          className="border-0 shadow-none rounded-none"
+          columns={columns}
+          data={trips}
+          loading={loading}
+          onRowClick={(row) => navigate(`/trips/${row.id}`)}
+          emptyTitle="No trips found"
+          emptyDesc="No dispatches match the selected filter criteria."
+        />
+
+        {/* Pagination Bar */}
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/30">
           <PaginationBar
-            page={page}
-            totalPages={totalPages}
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            onPageChange={setPage}
             totalItems={total}
             pageSize={PAGE_SIZE}
-            itemLabel="trips"
-            onPageChange={setPage}
           />
-        )}
-      </Card>
+        </div>
+      </div>
 
-      {/* ── Dispatch confirm ─────────────────────────────────────────────────── */}
+      {/* ── Dispatch Confirm Modal ── */}
       <ConfirmModal
-        isOpen={actionType === 'dispatch'}
-        onClose={closeAction}
-        onConfirm={runAction}
+        open={actionType === 'dispatch' && !!actionRow}
+        title="Confirm Dispatch"
+        message={`Are you sure you want to dispatch Trip #${actionRow?.id} from ${actionRow?.source || actionRow?.origin} to ${actionRow?.destination}? This will update the assigned vehicle status to ON_TRIP.`}
+        confirmText="Dispatch Now"
+        variant="primary"
         loading={actionLoading}
-        title="Dispatch Trip"
-        description={`Dispatch trip #${actionRow?.id} from ${actionRow?.source} to ${actionRow?.destination}? Vehicle and driver will be marked ON_TRIP.`}
-        confirmLabel="Dispatch"
+        error={actionError}
+        onConfirm={handleDispatch}
+        onCancel={() => { setActionRow(null); setActionType(null); }}
       />
 
-      {/* ── Cancel confirm ───────────────────────────────────────────────────── */}
+      {/* ── Cancel Confirm Modal ── */}
       <ConfirmModal
-        isOpen={actionType === 'cancel'}
-        onClose={closeAction}
-        onConfirm={runAction}
-        loading={actionLoading}
+        open={actionType === 'cancel' && !!actionRow}
         title="Cancel Trip"
-        description={`Cancel trip #${actionRow?.id}? This cannot be undone.`}
-        confirmLabel="Cancel Trip"
-      />
-
-      {/* ── Delete confirm ───────────────────────────────────────────────────── */}
-      <ConfirmModal
-        isOpen={actionType === 'delete'}
-        onClose={closeAction}
-        onConfirm={runAction}
+        message={`Are you sure you want to cancel Trip #${actionRow?.id}? The vehicle and driver will be released back to AVAILABLE.`}
+        confirmText="Cancel Trip"
+        variant="danger"
         loading={actionLoading}
-        title="Delete Trip"
-        description={`Permanently delete trip #${actionRow?.id}? Only DRAFT and CANCELLED trips can be deleted.`}
-        confirmLabel="Delete"
+        error={actionError}
+        onConfirm={handleCancel}
+        onCancel={() => { setActionRow(null); setActionType(null); }}
       />
 
-      {/* ── Complete modal ───────────────────────────────────────────────────── */}
+      {/* ── Delete Confirm Modal ── */}
+      <ConfirmModal
+        open={actionType === 'delete' && !!actionRow}
+        title="Delete Draft Trip"
+        message={`Are you sure you want to delete draft Trip #${actionRow?.id}? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={actionLoading}
+        error={actionError}
+        onConfirm={handleDelete}
+        onCancel={() => { setActionRow(null); setActionType(null); }}
+      />
+
+      {/* ── Complete Trip Modal ── */}
       <Modal
-        isOpen={actionType === 'complete'}
-        onClose={closeAction}
-        title="Complete Trip"
-        subtitle={`Trip #${actionRow?.id} — ${actionRow?.source} → ${actionRow?.destination}`}
-        size="md"
-        footer={
-          <>
-            <Button variant="secondary" size="sm" onClick={closeAction} disabled={actionLoading}>Cancel</Button>
-            <Button
-              size="sm"
-              variant="success"
-              loading={actionLoading}
-              onClick={runAction}
-              disabled={!completeForm.actualDistance || !completeForm.finalOdometer}
-            >
-              Mark Completed
-            </Button>
-          </>
-        }
+        open={actionType === 'complete' && !!actionRow}
+        onClose={() => { setActionRow(null); setActionType(null); }}
+        title={`Complete Trip #${actionRow?.id}`}
       >
-        <div className="space-y-4">
+        <form onSubmit={handleComplete} className="space-y-4">
           {actionError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{actionError}</div>
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+              {actionError}
+            </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs font-medium text-slate-600">Actual Distance (km) *</span>
-              <input
-                type="number" min="0" step="0.1"
-                value={completeForm.actualDistance}
-                onChange={e => setCompleteForm(f => ({ ...f, actualDistance: e.target.value }))}
-                className="input mt-1 w-full"
-                placeholder="e.g. 535"
-              />
+
+          <p className="text-xs text-slate-600">
+            Completing this trip will release the vehicle and driver back to AVAILABLE, and calculate distance traveled.
+          </p>
+
+          <div>
+            <label className="label">
+              Ending Odometer (km)
+              <span className="label-hint">Optional final reading</span>
             </label>
-            <label className="block">
-              <span className="text-xs font-medium text-slate-600">Final Odometer (km) *</span>
-              <input
-                type="number" min="0" step="0.1"
-                value={completeForm.finalOdometer}
-                onChange={e => setCompleteForm(f => ({ ...f, finalOdometer: e.target.value }))}
-                className="input mt-1 w-full"
-                placeholder="e.g. 48735"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-slate-600">Fuel Consumed (L)</span>
-              <input
-                type="number" min="0" step="0.1"
-                value={completeForm.fuelConsumed}
-                onChange={e => setCompleteForm(f => ({ ...f, fuelConsumed: e.target.value }))}
-                className="input mt-1 w-full"
-                placeholder="e.g. 120"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-slate-600">Revenue (₹)</span>
-              <input
-                type="number" min="0" step="0.01"
-                value={completeForm.revenue}
-                onChange={e => setCompleteForm(f => ({ ...f, revenue: e.target.value }))}
-                className="input mt-1 w-full"
-                placeholder="e.g. 45000"
-              />
-            </label>
+            <input
+              type="number"
+              className="input"
+              placeholder={actionRow?.startOdometer ? `Higher than ${actionRow.startOdometer}` : 'e.g. 48500'}
+              value={completeForm.endOdometer}
+              onChange={(e) => setCompleteForm({ endOdometer: e.target.value })}
+            />
           </div>
-        </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => { setActionRow(null); setActionType(null); }}
+            >
+              Close
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={actionLoading}
+            >
+              Complete Trip
+            </Button>
+          </div>
+        </form>
       </Modal>
-
-      {/* Error toast for non-complete actions */}
-      {actionError && actionType !== 'complete' && (
-        <div className="fixed bottom-4 right-4 z-50 p-4 bg-red-600 text-white rounded-xl shadow-lg text-sm max-w-sm">
-          {actionError}
-        </div>
-      )}
     </div>
-  )
-}
-
-// ── Action buttons per row ─────────────────────────────────────────────────────
-function ActionButtons({ row, onAction }) {
-  const { status } = row
-  return (
-    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-      {status === 'DRAFT' && (
-        <>
-          <ActionBtn icon={<Send size={13} />}    title="Dispatch" color="text-amber-600 hover:bg-amber-50"  onClick={() => onAction(row, 'dispatch')} />
-          <ActionBtn icon={<XCircle size={13} />} title="Cancel"   color="text-red-500 hover:bg-red-50"      onClick={() => onAction(row, 'cancel')}   />
-          <ActionBtn icon={<Trash2 size={13} />}  title="Delete"   color="text-slate-400 hover:bg-slate-100" onClick={() => onAction(row, 'delete')}   />
-        </>
-      )}
-      {status === 'DISPATCHED' && (
-        <>
-          <ActionBtn icon={<CheckCircle size={13} />} title="Complete" color="text-emerald-600 hover:bg-emerald-50" onClick={() => onAction(row, 'complete')} />
-          <ActionBtn icon={<XCircle size={13} />}     title="Cancel"   color="text-red-500 hover:bg-red-50"         onClick={() => onAction(row, 'cancel')}   />
-        </>
-      )}
-    </div>
-  )
-}
-
-function ActionBtn({ icon, title, color, onClick }) {
-  return (
-    <button
-      title={title}
-      onClick={onClick}
-      className={`p-1.5 rounded-lg transition-colors ${color}`}
-    >
-      {icon}
-    </button>
   )
 }

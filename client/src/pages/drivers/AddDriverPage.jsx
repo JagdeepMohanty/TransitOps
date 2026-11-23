@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ArrowLeft, Save, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import PageShell from '@components/layout/PageShell';
-import Button    from '@components/common/Button';
-import Input     from '@components/common/Input';
-import Select    from '@components/common/Select';
-import { driversApi } from '@api/drivers.api';
-import { LICENSE_CATEGORIES } from '@utils/constants';
+import PageShell from '@/components/layout/PageShell';
+import Button    from '@/components/common/Button';
+import Input     from '@/components/common/Input';
+import Select    from '@/components/common/Select';
+import Card      from '@/components/common/Card';
+import { driversApi } from '@/api/drivers.api';
+import { LICENSE_CATEGORIES } from '@/utils/constants';
 
 const INITIAL = {
   name:              '',
@@ -27,6 +28,7 @@ export default function AddDriverPage() {
   function set(field, value) {
     setForm(p => ({ ...p, [field]: value }));
     if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
+    if (apiError) setApiError('');
   }
 
   function validate() {
@@ -40,7 +42,7 @@ export default function AddDriverPage() {
     }
     if (!form.contactNumber.trim())     e.contactNumber     = 'Contact number is required';
     const score = Number(form.safetyScore);
-    if (isNaN(score) || score < 0 || score > 100) e.safetyScore = 'Safety score must be 0–100';
+    if (isNaN(score) || score < 0 || score > 100) e.safetyScore = 'Safety score must be between 0 and 100';
     return e;
   }
 
@@ -70,32 +72,40 @@ export default function AddDriverPage() {
   return (
     <PageShell
       title="Add Driver"
-      subtitle="Register a new driver to your roster"
+      subtitle="Register a new driver to your personnel roster"
       actions={
         <Link to="/drivers">
-          <Button variant="secondary" icon={ArrowLeft}>Back to Drivers</Button>
+          <Button variant="secondary" size="sm" leftIcon={<ArrowLeft size={14} />}>
+            Back to Drivers
+          </Button>
         </Link>
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <div className="space-y-4">
+        <div className="space-y-5 max-w-4xl">
 
           {apiError && (
-            <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
               {apiError}
             </div>
           )}
 
-          <div className="bg-bg-card border border-border-card rounded-xl shadow-card">
-            <div className="flex items-center gap-2 px-6 py-4 border-b border-border">
-              <Users className="w-4 h-4 text-content-muted" />
-              <h2 className="text-sm font-semibold text-content-primary">Driver Information</h2>
+          <Card padding="none">
+            <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                <Users size={16} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Driver Credentials & Contact</h2>
+                <p className="text-xs text-slate-500">Enter personal details and official licensing data</p>
+              </div>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <Input
                 id="name"
                 label="Full Name"
-                placeholder="Rajesh Kumar"
+                placeholder="e.g. Rajesh Kumar"
                 value={form.name}
                 onChange={e => set('name', e.target.value)}
                 error={errors.name}
@@ -104,7 +114,7 @@ export default function AddDriverPage() {
               <Input
                 id="contactNumber"
                 label="Contact Number"
-                placeholder="9876543210"
+                placeholder="e.g. 9876543210"
                 value={form.contactNumber}
                 onChange={e => set('contactNumber', e.target.value)}
                 error={errors.contactNumber}
@@ -113,7 +123,7 @@ export default function AddDriverPage() {
               <Input
                 id="licenseNumber"
                 label="License Number"
-                placeholder="DL0120230001234"
+                placeholder="e.g. DL0120230001234"
                 value={form.licenseNumber}
                 onChange={e => set('licenseNumber', e.target.value)}
                 error={errors.licenseNumber}
@@ -127,7 +137,7 @@ export default function AddDriverPage() {
                 onChange={e => set('licenseCategory', e.target.value)}
                 error={errors.licenseCategory}
                 required
-                placeholder="Select category"
+                placeholder="Select license category"
               />
               <Input
                 id="licenseExpiryDate"
@@ -140,7 +150,7 @@ export default function AddDriverPage() {
               />
               <Input
                 id="safetyScore"
-                label="Safety Score (0–100)"
+                label="Initial Safety Score (0–100)"
                 type="number"
                 placeholder="100"
                 value={form.safetyScore}
@@ -150,11 +160,15 @@ export default function AddDriverPage() {
                 max="100"
               />
             </div>
-          </div>
+          </Card>
 
-          <div className="flex items-center justify-end gap-3">
-            <Link to="/drivers"><Button variant="secondary">Cancel</Button></Link>
-            <Button type="submit" icon={Save} loading={loading}>Save Driver</Button>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Link to="/drivers">
+              <Button variant="secondary" type="button">Cancel</Button>
+            </Link>
+            <Button type="submit" leftIcon={<Save size={16} />} loading={loading}>
+              Save Driver
+            </Button>
           </div>
         </div>
       </form>

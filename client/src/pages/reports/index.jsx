@@ -11,6 +11,7 @@ import Button            from '@/components/common/Button'
 import Table             from '@/components/common/Table'
 import Loader            from '@/components/common/Loader'
 import Card, { CardHeader } from '@/components/common/Card'
+import StatsGrid         from '@/components/common/StatsGrid'
 import { formatCurrency, formatNumber } from '@/utils'
 import { reportsApi }    from '@/api/reports.api'
 import { downloadVehicleReportCsv } from '@/utils/exportCsv'
@@ -90,8 +91,11 @@ export default function ReportsPage() {
     setCsvLoading(true); setCsvError(null)
     try {
       await downloadVehicleReportCsv()
-    } catch (e) { setCsvError(errMsg(e)) }
-    finally     { setCsvLoading(false) }
+    } catch (e) {
+      setCsvError(e?.message ?? 'Failed to export CSV. Please try again.')
+    } finally {
+      setCsvLoading(false)
+    }
   }
 
   // Derived aggregates from vehicle data
@@ -102,10 +106,10 @@ export default function ReportsPage() {
   const totalMaintCost  = vehicles.reduce((s, v) => s + (v.totalMaintenanceCost ?? 0), 0)
 
   const kpiCards = [
-    { label: 'Total Revenue',    value: formatCurrency(totalRevenue),   icon: BarChart3, bg: 'bg-brand-600'  },
-    { label: 'Operational Cost', value: formatCurrency(totalOpCost),    icon: BarChart3, bg: 'bg-amber-500'  },
-    { label: 'Fuel Costs',       value: formatCurrency(totalFuelCost),  icon: Fuel,      bg: 'bg-blue-500'   },
-    { label: 'Maintenance Cost', value: formatCurrency(totalMaintCost), icon: Wrench,    bg: 'bg-red-500'    },
+    { label: 'Total Freight Revenue', value: formatCurrency(totalRevenue), sub: 'earned freight', color: 'text-emerald-600' },
+    { label: 'Total Operational Cost', value: formatCurrency(totalOpCost), sub: 'fleet expenses', color: 'text-slate-900' },
+    { label: 'Cumulative Fuel Spend', value: formatCurrency(totalFuelCost), sub: 'refueling total', color: 'text-blue-600' },
+    { label: 'Maintenance & Service', value: formatCurrency(totalMaintCost), sub: 'shop work orders', color: 'text-amber-600' },
   ]
 
   // Pie chart: expense split
@@ -123,18 +127,18 @@ export default function ReportsPage() {
       name:        v.registrationNumber,
       fuel:        v.totalFuelCost,
       maintenance: v.totalMaintenanceCost,
-      other:       v.totalOtherCost,
+      other:       v.totalOtherCost ?? 0,
     }))
 
   return (
     <div className="page-container">
-      <Breadcrumb items={[{ label: 'Home', path: '/' }, { label: 'Reports' }]} />
+      <Breadcrumb />
 
       <PageHeader
-        title="Reports"
-        subtitle="Operational analytics, cost breakdowns, and fleet performance insights."
+        title="Reports & Analytics"
+        subtitle="Operational analytics, cost breakdowns, and fleet performance insights"
         actions={
-          <>
+          <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchReports} loading={loading}>
               Refresh
             </Button>
@@ -143,10 +147,11 @@ export default function ReportsPage() {
               leftIcon={<Download size={14} />}
               loading={csvLoading}
               onClick={handleCsvExport}
+              disabled={vehicles.length === 0}
             >
               Export CSV
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -155,45 +160,33 @@ export default function ReportsPage() {
       )}
 
       {loading ? (
-        <Loader variant="spinner" size="lg" label="Generating report…" fullPage />
+        <Loader variant="spinner" size="lg" label="Generating reports…" fullPage />
       ) : error ? (
-        <div className="p-10 text-center">
-          <p className="text-sm text-red-600 mb-3">{error}</p>
+        <div className="p-10 text-center bg-white rounded-2xl border border-slate-200/80 shadow-card">
+          <p className="text-red-600 text-sm mb-3">{error}</p>
           <Button size="sm" variant="secondary" onClick={fetchReports}>Retry</Button>
         </div>
       ) : (
-        <>
+        <div className="space-y-6">
+
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {kpiCards.map(({ label, value, icon: Icon, bg }) => (
-              <Card key={label} variant="flat">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-                  </div>
-                  <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
-                    <Icon size={18} className="text-white" />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <StatsGrid stats={kpiCards} />
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Operational Cost by Vehicle */}
             <Card
               className="lg:col-span-2"
               header={<CardHeader title="Cost Breakdown by Vehicle" subtitle="Fuel, maintenance & other expenses" />}
             >
               {barData.length === 0 ? (
-                <div className="flex items-center justify-center h-[240px] text-sm text-slate-400">No data</div>
+                <div className="flex items-center justify-center h-[240px] text-sm text-slate-400">No operational cost data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={barData} barSize={14} barGap={3}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="name" {...AXIS_PROPS} />
-                    <YAxis {...AXIS_PROPS} tickFormatter={(v) => `₹${v / 1000}k`} />
+                    <YAxis {...AXIS_PROPS} tickFormatter={(v) => `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} />
                     <Tooltip {...CHART_TOOLTIP} formatter={(v) => [formatCurrency(v)]} />
                     <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: '11px' }} />
                     <Bar dataKey="fuel"        fill="#2563eb" radius={[3,3,0,0]} name="Fuel"        />
@@ -204,9 +197,10 @@ export default function ReportsPage() {
               )}
             </Card>
 
+            {/* Expense Split Pie */}
             <Card header={<CardHeader title="Expense Split" subtitle="By category" />}>
               {expenseSplit.length === 0 ? (
-                <div className="flex items-center justify-center h-[240px] text-sm text-slate-400">No data</div>
+                <div className="flex items-center justify-center h-[240px] text-sm text-slate-400">No expense split data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
@@ -245,10 +239,9 @@ export default function ReportsPage() {
             header={
               <div className="px-5 py-4">
                 <CardHeader
-                  title="Vehicle Performance"
+                  title="Vehicle Performance Summary"
                   subtitle="Trips, costs, efficiency and ROI per vehicle"
-                  actions={
-                    <Button variant="secondary" size="sm" leftIcon={<Download size={13} />} loading={csvLoading} onClick={handleCsvExport}>
+                  action={<Button variant="secondary" size="sm" leftIcon={<Download size={13} />} loading={csvLoading} onClick={handleCsvExport} disabled={vehicles.length === 0}>
                       Export CSV
                     </Button>
                   }
@@ -259,11 +252,12 @@ export default function ReportsPage() {
             <Table
               columns={PERF_COLUMNS}
               data={vehicles}
-              emptyTitle="No vehicle data"
+              emptyTitle="No vehicle performance data"
               emptyDesc="Vehicle performance data will appear once trips and fuel logs are recorded."
             />
           </Card>
-        </>
+
+        </div>
       )}
     </div>
   )

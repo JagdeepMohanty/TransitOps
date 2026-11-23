@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '@/components/layout/Sidebar'
 import Navbar  from '@/components/layout/Navbar'
+import ErrorBoundary from '@/components/common/ErrorBoundary'
 
 const SIDEBAR_FULL      = 260
 const SIDEBAR_COLLAPSED = 68
@@ -45,17 +46,15 @@ export default function AppLayout() {
         onToggleCollapse={() => setCollapsed(v => !v)}
       />
 
-      {/*
-        Desktop: content shifts right by sidebar width (via useEffect above).
-        Mobile/tablet: sidebar is a fixed overlay, content stays full-width.
-      */}
       <div
         ref={mainRef}
         className="flex flex-col flex-1 min-w-0 overflow-hidden transition-[margin-left] duration-[250ms] ease-in-out"
       >
         <Navbar onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto overflow-x-hidden transit-canvas">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

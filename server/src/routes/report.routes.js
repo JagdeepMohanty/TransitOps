@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', authorize('FLEET_MANAGER', 'FINANCIAL_ANALYST'), getReports);
-router.get('/export/csv', authorize('FLEET_MANAGER', 'FINANCIAL_ANALYST'), exportReportsCsv);
+router.get('/', authorize('FLEET_MANAGER', 'FINANCIAL_ANALYST', 'DISPATCHER', 'SAFETY_OFFICER'), getReports);
+router.get('/export/csv', authorize('FLEET_MANAGER', 'FINANCIAL_ANALYST', 'DISPATCHER', 'SAFETY_OFFICER'), exportReportsCsv);
 
 export default router;

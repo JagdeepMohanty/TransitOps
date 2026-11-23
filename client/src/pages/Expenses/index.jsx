@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, Download, Eye, Receipt, Calendar, Tag, RefreshCw, Truck } from 'lucide-react'
+import { Plus, Download, Eye, Receipt, Calendar, Tag, RefreshCw, Truck, Trash2, Edit2 } from 'lucide-react'
 
 import PageHeader     from '@/components/layout/PageHeader'
 import Breadcrumb     from '@/components/common/Breadcrumb'
 import Button         from '@/components/common/Button'
 import SearchBar      from '@/components/common/SearchBar'
 import Table          from '@/components/common/Table'
-import Modal          from '@/components/common/Modal'
+import Modal, { ConfirmModal } from '@/components/common/Modal'
 import Loader         from '@/components/common/Loader'
 import Card           from '@/components/common/Card'
 import FilterTabBar   from '@/components/common/FilterTabBar'
@@ -58,6 +58,32 @@ export default function ExpensesPage() {
     vehicleId: '', tripId: '', type: '', amount: '', description: '', expenseDate: today(),
   })
 
+  // Edit modal
+  const [editRow,       setEditRow]       = useState(null)
+  const [editLoading,   setEditLoading]   = useState(false)
+  const [editError,     setEditError]     = useState(null)
+  const [editForm,      setEditForm]      = useState({
+    vehicleId: '', tripId: '', type: '', amount: '', description: '', expenseDate: today(),
+  })
+
+  // Delete modal
+  const [deleteRow,     setDeleteRow]     = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const handleDelete = async () => {
+    if (!deleteRow) return
+    setDeleteLoading(true)
+    try {
+      await expensesApi.remove(deleteRow.id)
+      setDeleteRow(null)
+      fetchExpenses()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   const fetchExpenses = useCallback(async () => {
     setLoading(true); setError(null)
     try {
@@ -75,20 +101,20 @@ export default function ExpensesPage() {
   useEffect(() => { fetchExpenses() }, [fetchExpenses])
 
   const stats = useMemo(() => {
-    const totalAmt  = expenses.reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
-    const fuelAmt   = expenses.filter(e => e.type === 'FUEL').reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
-    const maintAmt  = expenses.filter(e => e.type === 'MAINTENANCE').reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
+    const totalAmount = expenses.reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
+    const fuelAmt     = expenses.filter(e => e.type === 'FUEL').reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
+    const maintAmt    = expenses.filter(e => e.type === 'MAINTENANCE').reduce((s, e) => s + parseFloat(e.amount ?? 0), 0)
     return [
-      { label: 'Total Records',  value: total,                color: 'text-slate-900' },
-      { label: 'Total Amount',   value: formatCurrency(totalAmt), color: 'text-brand-600' },
-      { label: 'Fuel Total',     value: formatCurrency(fuelAmt),  color: 'text-blue-600'  },
-      { label: 'Maint. Total',   value: formatCurrency(maintAmt), color: 'text-amber-600' },
+      { label: 'Total In View', value: total, sub: 'expense vouchers' },
+      { label: 'Page Subtotal', value: formatCurrency(totalAmount), color: 'text-slate-900', sub: 'current view' },
+      { label: 'Fuel Spend',    value: formatCurrency(fuelAmt), color: 'text-blue-600', sub: 'energy costs' },
+      { label: 'Workshop / Maint', value: formatCurrency(maintAmt), color: 'text-amber-600', sub: 'repairs & servicing' },
     ]
   }, [expenses, total])
 
   const openCreate = async () => {
-    setCreateError(null)
     setForm({ vehicleId: '', tripId: '', type: '', amount: '', description: '', expenseDate: today() })
+    setCreateError(null)
     setShowCreate(true)
     setLoadingVeh(true)
     try {
@@ -99,21 +125,21 @@ export default function ExpensesPage() {
   }
 
   const handleCreate = async () => {
-    setCreateError(null)
-    if (!form.vehicleId)                                  { setCreateError('Select a vehicle.'); return }
-    if (!form.type)                                       { setCreateError('Select an expense type.'); return }
-    if (!form.amount || parseFloat(form.amount) < 0)      { setCreateError('Amount must be ≥ 0.'); return }
-    if (!form.expenseDate)                                { setCreateError('Date is required.'); return }
+    if (!form.vehicleId)                                { setCreateError('Select a vehicle.'); return }
+    if (!form.type)                                     { setCreateError('Select an expense type.'); return }
+    if (!form.amount || parseFloat(form.amount) <= 0)   { setCreateError('Amount must be > 0.'); return }
+    if (!form.expenseDate)                              { setCreateError('Date is required.'); return }
 
     setCreateLoading(true)
+    setCreateError(null)
     try {
       await expensesApi.create({
         vehicleId:   parseInt(form.vehicleId),
         type:        form.type,
         amount:      parseFloat(form.amount),
-        description: form.description || undefined,
         expenseDate: new Date(form.expenseDate).toISOString(),
-        ...(form.tripId && { tripId: parseInt(form.tripId) }),
+        ...(form.description && { description: form.description }),
+        ...(form.tripId      && { tripId: parseInt(form.tripId)  }),
       })
       setShowCreate(false)
       fetchExpenses()
@@ -121,7 +147,52 @@ export default function ExpensesPage() {
     finally     { setCreateLoading(false) }
   }
 
-  const getTabCount = (key) => key === 'All' ? total : undefined
+  const openEdit = async (row) => {
+    setEditRow(row)
+    setEditError(null)
+    setEditForm({
+      vehicleId:   String(row.vehicleId ?? ''),
+      tripId:      row.tripId ? String(row.tripId) : '',
+      type:        row.type || '',
+      amount:      row.amount != null ? String(row.amount) : '',
+      description: row.description || '',
+      expenseDate: row.expenseDate ? new Date(row.expenseDate).toISOString().slice(0, 10) : today(),
+    })
+    setLoadingVeh(true)
+    try {
+      const res = await vehiclesApi.getAll({ limit: 100 })
+      setVehicles(res.data.data?.data ?? [])
+    } catch { setEditError('Failed to load vehicles.') }
+    finally   { setLoadingVeh(false) }
+  }
+
+  const handleEdit = async () => {
+    if (!editForm.vehicleId)                                { setEditError('Select a vehicle.'); return }
+    if (!editForm.type)                                     { setEditError('Select an expense type.'); return }
+    if (!editForm.amount || parseFloat(editForm.amount) <= 0) { setEditError('Amount must be > 0.'); return }
+    if (!editForm.expenseDate)                              { setEditError('Date is required.'); return }
+
+    setEditLoading(true)
+    setEditError(null)
+    try {
+      await expensesApi.update(editRow.id, {
+        vehicleId:   parseInt(editForm.vehicleId),
+        type:        editForm.type,
+        amount:      parseFloat(editForm.amount),
+        expenseDate: new Date(editForm.expenseDate).toISOString(),
+        description: editForm.description || '',
+        tripId:      editForm.tripId ? parseInt(editForm.tripId) : null,
+      })
+      setEditRow(null)
+      fetchExpenses()
+    } catch (e) { setEditError(errMsg(e)) }
+    finally     { setEditLoading(false) }
+  }
+
+  const getTabCount = (key) => {
+    if (key === 'All') return total
+    return expenses.filter(e => e.type === key).length || undefined
+  }
 
   const COLUMNS = [
     { key: 'id', label: 'ID', width: '70px',
@@ -131,7 +202,7 @@ export default function ExpensesPage() {
         const s = TYPE_STYLE[v] ?? TYPE_STYLE.OTHER
         return (
           <span className={`badge ${s.pill} ring-1 ring-transparent`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${s.dot} mr-1`} />
+            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${s.dot}`} />
             {TYPE_LABEL[v] ?? v}
           </span>
         )
@@ -142,53 +213,67 @@ export default function ExpensesPage() {
           <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <Truck size={13} className="text-blue-600" />
           </div>
-          <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+          <span className="font-mono text-xs font-medium text-slate-800">
             {row.vehicle?.registrationNumber ?? '—'}
           </span>
         </div>
       )},
     { key: 'description', label: 'Description',
-      render: (v) => <span className="text-sm text-slate-700 truncate max-w-[200px] block">{v || '—'}</span> },
-    { key: 'expenseDate', label: 'Date', sortable: true,
+      render: (v) => <span className="text-sm text-slate-600 truncate max-w-[200px] block">{v || '—'}</span> },
+    { key: 'expenseDate', label: 'Date',
       render: (v) => <span className="text-xs text-slate-500">{formatDate(v)}</span> },
-    { key: 'amount', label: 'Amount (₹)', align: 'right',
-      render: (v) => <span className="font-bold text-slate-800">{formatCurrency(parseFloat(v ?? 0))}</span> },
-    { key: '_actions', label: '', width: '50px',
+    { key: 'amount', label: 'Amount', align: 'right',
+      render: (v) => <span className="font-semibold text-slate-900">{formatCurrency(parseFloat(v ?? 0))}</span> },
+    { key: 'actions', label: '', width: '110px', align: 'right',
       render: (_, row) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setDetailRow(row) }}
-          className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
-        >
-          <Eye size={15} />
-        </button>
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setDetailRow(row)}
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            title="View details"
+          >
+            <Eye size={15} />
+          </button>
+          <button
+            onClick={() => openEdit(row)}
+            className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors"
+            title="Edit expense"
+          >
+            <Edit2 size={15} />
+          </button>
+          <button
+            onClick={() => setDeleteRow(row)}
+            className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete expense"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       )},
   ]
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
   return (
     <div className="page-container">
-      <Breadcrumb items={[{ label: 'Home', path: '/' }, { label: 'Expenses' }]} />
+      <Breadcrumb />
 
       <PageHeader
-        title="Expenses"
-        subtitle="Track and categorise all operational expenditures."
-        badge={<span className="badge bg-green-100 text-green-700 ring-1 ring-green-200">{total} records</span>}
+        title="Fleet Expenses"
+        subtitle="Track and audit general operational, repair, and toll expenses"
         actions={
-          <>
+          <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchExpenses} loading={loading}>
               Refresh
             </Button>
             <Button size="sm" leftIcon={<Plus size={14} />} onClick={openCreate}>
               Add Expense
             </Button>
-          </>
+          </div>
         }
       />
 
       <StatsGrid stats={stats} />
 
-      <Card padding="none">
+      <div className="rounded-xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 space-y-3">
           <FilterTabBar
             tabs={TYPE_TABS}
@@ -224,11 +309,11 @@ export default function ExpensesPage() {
 
         {!loading && !error && (
           <PaginationBar
-            page={page} totalPages={totalPages} totalItems={total}
+            page={page} totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))} totalItems={total}
             pageSize={PAGE_SIZE} itemLabel="expenses" onPageChange={setPage}
           />
         )}
-      </Card>
+      </div>
 
       {/* Create Modal */}
       <Modal
@@ -247,7 +332,7 @@ export default function ExpensesPage() {
           )}
 
           <MField label="Vehicle *">
-            {loadingVeh ? <p className="text-xs text-slate-500 py-2">Loading…</p> : (
+            {loadingVeh ? <p className="text-xs text-slate-500 py-2">Loading vehicles…</p> : (
               <select value={form.vehicleId} onChange={e => setForm(f => ({ ...f, vehicleId: e.target.value }))} className={iCls()}>
                 <option value="">Select vehicle…</option>
                 {vehicles.map(v => (
@@ -293,6 +378,69 @@ export default function ExpensesPage() {
         </div>
       </Modal>
 
+      {/* Edit Modal */}
+      <Modal
+        isOpen={!!editRow} onClose={() => setEditRow(null)}
+        title="Edit Expense" subtitle={`Expense #${editRow?.id}`} size="md"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setEditRow(null)} disabled={editLoading}>Cancel</Button>
+            <Button size="sm" loading={editLoading} onClick={handleEdit}>Save Changes</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {editError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{editError}</div>
+          )}
+
+          <MField label="Vehicle *">
+            {loadingVeh ? <p className="text-xs text-slate-500 py-2">Loading vehicles…</p> : (
+              <select value={editForm.vehicleId} onChange={e => setEditForm(f => ({ ...f, vehicleId: e.target.value }))} className={iCls()}>
+                <option value="">Select vehicle…</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>{v.registrationNumber} — {v.name}</option>
+                ))}
+              </select>
+            )}
+          </MField>
+
+          <MField label="Expense Type *">
+            <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))} className={iCls()}>
+              <option value="">Select type…</option>
+              {EXPENSE_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </MField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <MField label="Amount (₹) *">
+              <input type="number" min="0" step="0.01" value={editForm.amount}
+                onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="e.g. 2500" className={iCls()} />
+            </MField>
+            <MField label="Date *">
+              <input type="date" value={editForm.expenseDate}
+                onChange={e => setEditForm(f => ({ ...f, expenseDate: e.target.value }))}
+                className={iCls()} />
+            </MField>
+          </div>
+
+          <MField label="Description">
+            <input type="text" value={editForm.description}
+              onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Optional description" className={iCls()} />
+          </MField>
+
+          <MField label="Trip ID (optional)">
+            <input type="number" min="1" step="1" value={editForm.tripId}
+              onChange={e => setEditForm(f => ({ ...f, tripId: e.target.value }))}
+              placeholder="Link to a trip" className={iCls()} />
+          </MField>
+        </div>
+      </Modal>
+
       {/* Detail Modal */}
       <Modal
         isOpen={!!detailRow} onClose={() => setDetailRow(null)}
@@ -318,6 +466,17 @@ export default function ExpensesPage() {
           </div>
         )}
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteRow}
+        onClose={() => setDeleteRow(null)}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+        title="Delete Expense"
+        description={`Are you sure you want to delete this ${deleteRow?.type} expense of ${formatCurrency(deleteRow?.amount)}? This action cannot be undone.`}
+        confirmLabel="Delete Expense"
+      />
     </div>
   )
 }

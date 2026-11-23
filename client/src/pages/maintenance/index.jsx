@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, Wrench, Truck, Calendar, RefreshCw, CheckCircle, FileText } from 'lucide-react'
+import { Plus, Wrench, Truck, Calendar, RefreshCw, CheckCircle, FileText, Trash2, Edit2 } from 'lucide-react'
 
 import PageHeader    from '@/components/layout/PageHeader'
 import Breadcrumb    from '@/components/common/Breadcrumb'
@@ -7,7 +7,7 @@ import Button        from '@/components/common/Button'
 import SearchBar     from '@/components/common/SearchBar'
 import Table         from '@/components/common/Table'
 import StatusBadge   from '@/components/common/StatusBadge'
-import Modal         from '@/components/common/Modal'
+import Modal, { ConfirmModal } from '@/components/common/Modal'
 import Loader        from '@/components/common/Loader'
 import Card          from '@/components/common/Card'
 import FilterTabBar  from '@/components/common/FilterTabBar'
@@ -17,7 +17,6 @@ import { formatDate, formatCurrency } from '@/utils'
 import { maintenanceApi } from '@/api/maintenance.api'
 import { vehiclesApi    } from '@/api/vehicles.api'
 
-// ── Constants ──────────────────────────────────────────────────────────────────
 const MAINTENANCE_TYPES = [
   'Oil Change', 'Tyre Replacement', 'Brake Inspection',
   'Pollution Certificate Check', 'General Service',
@@ -39,18 +38,14 @@ const errMsg = (err) =>
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function MaintenancePage() {
-  // ── Data state ───────────────────────────────────────────────────────────────
   const [records,   setRecords]   = useState([])
   const [total,     setTotal]     = useState(0)
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
-
-  // ── Filter / pagination ──────────────────────────────────────────────────────
-  const [search,    setSearch]    = useState('')
-  const [activeTab, setActiveTab] = useState('all')
   const [page,      setPage]      = useState(1)
+  const [activeTab, setActiveTab] = useState('all')
 
-  // ── Create modal ─────────────────────────────────────────────────────────────
+  // Create modal
   const [showCreate,    setShowCreate]    = useState(false)
   const [vehicles,      setVehicles]      = useState([])
   const [loadingVeh,    setLoadingVeh]    = useState(false)
@@ -60,13 +55,25 @@ export default function MaintenancePage() {
   const [createLoading, setCreateLoading] = useState(false)
   const [createError,   setCreateError]   = useState(null)
 
-  // ── Close modal ──────────────────────────────────────────────────────────────
+  // Edit modal
+  const [editRow,       setEditRow]       = useState(null)
+  const [editForm,      setEditForm]      = useState({
+    maintenanceType: '', description: '', startDate: today(), cost: '', notes: '',
+  })
+  const [editLoading,   setEditLoading]   = useState(false)
+  const [editError,     setEditError]     = useState(null)
+
+  // Close modal
   const [closeRow,     setCloseRow]     = useState(null)
   const [closeForm,    setCloseForm]    = useState({ cost: '', notes: '' })
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeError,   setCloseError]   = useState(null)
 
-  // ── Fetch records ────────────────────────────────────────────────────────────
+  // Delete modal
+  const [deleteRow,    setDeleteRow]    = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Fetch records
   const fetchRecords = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -84,20 +91,22 @@ export default function MaintenancePage() {
     }
   }, [page, activeTab])
 
-  useEffect(() => { fetchRecords() }, [fetchRecords])
+  useEffect(() => {
+    fetchRecords()
+  }, [fetchRecords])
 
-  // ── Load vehicles for create form ────────────────────────────────────────────
+  // Load vehicles for create form
   const openCreate = async () => {
     setCreateError(null)
     setCreateForm({ vehicleId: '', maintenanceType: '', description: '', startDate: today(), cost: '', notes: '' })
     setShowCreate(true)
     setLoadingVeh(true)
     try {
-      // Load all vehicles (not just available) so fleet manager can see what's in shop
       const res = await vehiclesApi.getAll({ limit: 100 })
-      const all = res.data.data?.data ?? []
-      // Exclude RETIRED and ON_TRIP — only AVAILABLE and IN_SHOP are valid targets
-      setVehicles(all.filter(v => v.status !== 'RETIRED' && v.status !== 'ON_TRIP'))
+      const list = (res.data.data?.data ?? []).filter(
+        v => v.status !== 'RETIRED' && v.status !== 'ON_TRIP'
+      )
+      setVehicles(list)
     } catch {
       setCreateError('Failed to load vehicles.')
     } finally {
@@ -105,46 +114,23 @@ export default function MaintenancePage() {
     }
   }
 
-  // ── Tab counts ───────────────────────────────────────────────────────────────
-  const tabCounts = useMemo(() => {
-    const counts = { all: total }
-    STATUS_TABS.slice(1).forEach(t => {
-      counts[t.key] = records.filter(r => r.status === t.key).length
-    })
-    return counts
-  }, [records, total])
-
-  // ── Stats ────────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const totalCost = records.reduce((s, r) => s + parseFloat(r.cost ?? 0), 0)
-    return [
-      { label: 'Total',     value: total,                                                  color: 'text-slate-900'   },
-      { label: 'Active',    value: records.filter(r => r.status === 'ACTIVE').length,      color: 'text-amber-600'   },
-      { label: 'Completed', value: records.filter(r => r.status === 'COMPLETED').length,   color: 'text-emerald-600' },
-      { label: 'Cancelled', value: records.filter(r => r.status === 'CANCELLED').length,   color: 'text-slate-500'   },
-      { label: 'Total Cost',value: formatCurrency(totalCost),                              color: 'text-brand-600'   },
-    ]
-  }, [records, total])
-
-  // ── Client-side search filter ────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    if (!search.trim()) return records
-    const q = search.toLowerCase()
-    return records.filter(r =>
-      r.maintenanceType?.toLowerCase().includes(q) ||
-      r.vehicle?.registrationNumber?.toLowerCase().includes(q) ||
-      r.vehicle?.name?.toLowerCase().includes(q)
-    )
-  }, [records, search])
-
-  // ── Create submit ────────────────────────────────────────────────────────────
+  // Submit create
   const handleCreate = async () => {
-    setCreateError(null)
-    if (!createForm.vehicleId)       { setCreateError('Select a vehicle.'); return }
-    if (!createForm.maintenanceType) { setCreateError('Select a maintenance type.'); return }
-    if (!createForm.startDate)       { setCreateError('Start date is required.'); return }
+    if (!createForm.vehicleId) {
+      setCreateError('Select a vehicle.')
+      return
+    }
+    if (!createForm.maintenanceType) {
+      setCreateError('Select a maintenance type.')
+      return
+    }
+    if (!createForm.startDate) {
+      setCreateError('Start date is required.')
+      return
+    }
 
     setCreateLoading(true)
+    setCreateError(null)
     try {
       await maintenanceApi.create({
         vehicleId:       parseInt(createForm.vehicleId),
@@ -163,10 +149,60 @@ export default function MaintenancePage() {
     }
   }
 
-  // ── Close submit ─────────────────────────────────────────────────────────────
-  const handleClose = async () => {
+  // Open edit modal
+  const openEdit = (row) => {
+    setEditRow(row)
+    setEditForm({
+      maintenanceType: row.maintenanceType || '',
+      description:     row.description || '',
+      startDate:       row.startDate ? new Date(row.startDate).toISOString().slice(0, 10) : today(),
+      cost:            row.cost != null ? String(row.cost) : '',
+      notes:           row.notes || '',
+    })
+    setEditError(null)
+  }
+
+  // Submit edit
+  const handleEdit = async () => {
+    if (!editForm.maintenanceType) {
+      setEditError('Select a maintenance type.')
+      return
+    }
+    if (!editForm.startDate) {
+      setEditError('Start date is required.')
+      return
+    }
+
+    setEditLoading(true)
+    setEditError(null)
+    try {
+      await maintenanceApi.update(editRow.id, {
+        maintenanceType: editForm.maintenanceType,
+        description:     editForm.description || undefined,
+        startDate:       new Date(editForm.startDate).toISOString(),
+        cost:            editForm.cost !== '' ? parseFloat(editForm.cost) : 0,
+        notes:           editForm.notes || undefined,
+      })
+      setEditRow(null)
+      fetchRecords()
+    } catch (err) {
+      setEditError(errMsg(err))
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  // Open close modal
+  const openClose = (row) => {
+    setCloseRow(row)
+    setCloseForm({ cost: row.cost ? String(row.cost) : '', notes: '' })
     setCloseError(null)
+  }
+
+  // Submit close
+  const handleClose = async () => {
     setCloseLoading(true)
+    setCloseError(null)
     try {
       await maintenanceApi.close(closeRow.id, {
         cost:  closeForm.cost  ? parseFloat(closeForm.cost)  : undefined,
@@ -181,88 +217,171 @@ export default function MaintenancePage() {
     }
   }
 
-  // ── Table columns ────────────────────────────────────────────────────────────
-  const COLUMNS = [
-    { key: 'id', label: 'ID', width: '70px',
-      render: (v) => <span className="font-mono text-xs text-brand-600 font-semibold">#{v}</span> },
-    { key: 'vehicle', label: 'Vehicle',
+  // Submit delete
+  const handleDelete = async () => {
+    if (!deleteRow) return
+    setDeleteLoading(true)
+    try {
+      await maintenanceApi.remove(deleteRow.id)
+      setDeleteRow(null)
+      fetchRecords()
+    } catch (err) {
+      setError(errMsg(err))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
+  // Metrics
+  const stats = useMemo(() => {
+    const active    = records.filter(r => r.status === 'ACTIVE').length
+    const completed = records.filter(r => r.status === 'COMPLETED').length
+    const totalCost = records.reduce((s, r) => s + parseFloat(r.cost ?? 0), 0)
+    return [
+      { label: 'Total Records', value: total, sub: 'service entries' },
+      { label: 'In Shop (Active)', value: active, color: active > 0 ? 'text-amber-600' : 'text-slate-600', sub: 'in bay currently' },
+      { label: 'Completed',     value: completed, color: 'text-emerald-600', sub: 'certified roadworthy' },
+      { label: 'Cumulative Cost', value: formatCurrency(totalCost), color: 'text-slate-900', sub: 'maintenance spend' },
+    ]
+  }, [records, total])
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const columns = useMemo(() => [
+    {
+      key: 'id',
+      label: 'ID',
+      width: '60px',
+      render: (v) => <span className="font-mono text-xs text-brand-600 font-semibold">#{v}</span>,
+    },
+    {
+      key: 'vehicle',
+      label: 'Vehicle',
       render: (_, row) => (
-        <div className="flex items-center gap-1.5">
-          <Truck size={12} className="text-slate-400 shrink-0" />
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+            <Truck size={13} className="text-amber-600" />
+          </div>
           <div>
-            <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+            <span className="font-mono text-xs font-semibold text-slate-900">
               {row.vehicle?.registrationNumber ?? '—'}
             </span>
             <p className="text-[11px] text-slate-400 mt-0.5">{row.vehicle?.name ?? ''}</p>
           </div>
         </div>
-      )},
-    { key: 'maintenanceType', label: 'Service Type', sortable: true,
+      ),
+    },
+    {
+      key: 'maintenanceType',
+      label: 'Type',
+      render: (v) => <span className="font-medium text-slate-800 text-sm">{v}</span>,
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      render: (v) => <span className="text-slate-500 text-sm truncate max-w-[200px] block">{v || '—'}</span>,
+    },
+    {
+      key: 'startDate',
+      label: 'Start Date',
+      render: (v) => <span className="text-slate-500 text-xs">{formatDate(v)}</span>,
+    },
+    {
+      key: 'endDate',
+      label: 'End Date',
       render: (v) => (
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-            <Wrench size={11} className="text-amber-600" />
-          </div>
-          <span className="text-sm font-medium text-slate-800">{v}</span>
+        <span className="text-slate-500 text-xs">
+          {v ? formatDate(v) : <span className="text-amber-600 font-medium">In progress</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'cost',
+      label: 'Cost (₹)',
+      align: 'right',
+      render: (v) => (
+        <span className="font-semibold text-slate-800 text-sm">
+          {v != null ? formatCurrency(parseFloat(v)) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      align: 'center',
+      render: (v) => <StatusBadge status={v} />,
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (_, row) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {row.status === 'ACTIVE' && (
+            <>
+              <button
+                onClick={() => openEdit(row)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors"
+                title="Edit maintenance record"
+              >
+                <Edit2 size={14} />
+              </button>
+              <Button
+                size="xs"
+                variant="success"
+                leftIcon={<CheckCircle size={12} />}
+                onClick={() => openClose(row)}
+              >
+                Close
+              </Button>
+            </>
+          )}
+          <button
+            onClick={() => setDeleteRow(row)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete maintenance record"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
-      )},
-    { key: 'startDate', label: 'Start Date', sortable: true,
-      render: (v) => <span className="text-xs text-slate-500">{formatDate(v)}</span> },
-    { key: 'endDate', label: 'End Date',
-      render: (v) => <span className="text-xs text-slate-500">{v ? formatDate(v) : '—'}</span> },
-    { key: 'cost', label: 'Cost (₹)', align: 'right',
-      render: (v) => <span className="font-semibold text-slate-800">{formatCurrency(parseFloat(v ?? 0))}</span> },
-    { key: 'status', label: 'Status', width: '120px',
-      render: (v) => <StatusBadge status={v} /> },
-    { key: '_actions', label: '', width: '60px',
-      render: (_, row) => row.status === 'ACTIVE' ? (
-        <button
-          title="Close Maintenance"
-          onClick={(e) => { e.stopPropagation(); setCloseRow(row); setCloseForm({ cost: String(parseFloat(row.cost ?? 0)), notes: '' }); setCloseError(null) }}
-          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-        >
-          <CheckCircle size={15} />
-        </button>
-      ) : null },
-  ]
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+      ),
+    },
+  ], [])
 
   return (
     <div className="page-container">
-      <Breadcrumb items={[{ label: 'Home', path: '/' }, { label: 'Maintenance' }]} />
+      <Breadcrumb />
 
       <PageHeader
-        title="Maintenance"
-        subtitle="Track vehicle service records, repairs, and scheduled maintenance."
-        badge={<span className="badge bg-amber-100 text-amber-700 ring-1 ring-amber-200">{total} records</span>}
+        title="Fleet Maintenance"
+        subtitle="Manage repair schedules, work orders, and vehicle shop logs"
         actions={
-          <>
-            <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchRecords} loading={loading}>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<RefreshCw size={14} />}
+              onClick={fetchRecords}
+              loading={loading}
+            >
               Refresh
             </Button>
             <Button size="sm" leftIcon={<Plus size={14} />} onClick={openCreate}>
               Log Maintenance
             </Button>
-          </>
+          </div>
         }
       />
 
       <StatsGrid stats={stats} />
 
-      <Card padding="none">
-        <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+      <div className="rounded-xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
+        <div className="px-5 pt-4 pb-2 border-b border-slate-100">
           <FilterTabBar
             tabs={STATUS_TABS}
             active={activeTab}
-            onChange={(key) => { setActiveTab(key); setPage(1) }}
-            getCount={(key) => tabCounts[key] ?? 0}
-          />
-          <SearchBar
-            placeholder="Search vehicle, service type…"
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(1) }}
-            className="w-full sm:w-72"
+            onChange={(tab) => { setActiveTab(tab); setPage(1) }}
+            getCount={(key) => key === 'all' ? total : undefined}
           />
         </div>
 
@@ -275,11 +394,11 @@ export default function MaintenancePage() {
           </div>
         ) : (
           <Table
-            columns={COLUMNS}
-            data={filtered}
-            emptyTitle="No maintenance records"
-            emptyDesc={search || activeTab !== 'all' ? 'Try clearing filters.' : 'Log your first maintenance record.'}
-            emptyAction={!search && activeTab === 'all' && (
+            columns={columns}
+            data={records}
+            emptyTitle="No maintenance records found"
+            emptyDesc={activeTab !== 'all' ? 'Try switching filter tabs.' : 'Schedule routine maintenance for your fleet.'}
+            emptyAction={activeTab === 'all' && (
               <Button size="sm" leftIcon={<Plus size={14} />} onClick={openCreate}>Log Maintenance</Button>
             )}
           />
@@ -295,14 +414,14 @@ export default function MaintenancePage() {
             onPageChange={setPage}
           />
         )}
-      </Card>
+      </div>
 
-      {/* ── Create Maintenance Modal ─────────────────────────────────────────── */}
+      {/* Create Maintenance Modal */}
       <Modal
         isOpen={showCreate}
         onClose={() => setShowCreate(false)}
         title="Log Maintenance"
-        subtitle="Vehicle will be set to IN_SHOP on creation."
+        subtitle="Vehicle will be automatically set to IN_SHOP on creation."
         size="md"
         footer={
           <>
@@ -370,7 +489,7 @@ export default function MaintenancePage() {
                 type="number" min="0" step="0.01"
                 value={createForm.cost}
                 onChange={e => setCreateForm(f => ({ ...f, cost: e.target.value }))}
-                placeholder="e.g. 3500"
+                placeholder="0.00"
                 className={inputCls()}
               />
             </MField>
@@ -381,18 +500,90 @@ export default function MaintenancePage() {
               rows={2}
               value={createForm.notes}
               onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Additional notes…"
+              placeholder="Additional service notes…"
               className={`${inputCls()} h-auto py-2 resize-none`}
             />
           </MField>
         </div>
       </Modal>
 
-      {/* ── Close Maintenance Modal ──────────────────────────────────────────── */}
+      {/* Edit Maintenance Modal */}
+      <Modal
+        isOpen={!!editRow}
+        onClose={() => setEditRow(null)}
+        title="Edit Maintenance Record"
+        subtitle={`Record #${editRow?.id} — ${editRow?.vehicle?.registrationNumber ?? ''}`}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setEditRow(null)} disabled={editLoading}>Cancel</Button>
+            <Button size="sm" loading={editLoading} onClick={handleEdit}>Save Changes</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {editError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{editError}</div>
+          )}
+
+          <MField label="Maintenance Type *">
+            <select
+              value={editForm.maintenanceType}
+              onChange={e => setEditForm(f => ({ ...f, maintenanceType: e.target.value }))}
+              className={inputCls()}
+            >
+              <option value="">Select type…</option>
+              {MAINTENANCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </MField>
+
+          <MField label="Description">
+            <input
+              type="text"
+              value={editForm.description}
+              onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Brief description of work to be done"
+              className={inputCls()}
+            />
+          </MField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <MField label="Start Date *">
+              <input
+                type="date"
+                value={editForm.startDate}
+                onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                className={inputCls()}
+              />
+            </MField>
+            <MField label="Cost (₹)">
+              <input
+                type="number" min="0" step="0.01"
+                value={editForm.cost}
+                onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))}
+                placeholder="0.00"
+                className={inputCls()}
+              />
+            </MField>
+          </div>
+
+          <MField label="Notes">
+            <textarea
+              rows={2}
+              value={editForm.notes}
+              onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Additional service notes…"
+              className={`${inputCls()} h-auto py-2 resize-none`}
+            />
+          </MField>
+        </div>
+      </Modal>
+
+      {/* Close Maintenance Modal */}
       <Modal
         isOpen={!!closeRow}
         onClose={() => setCloseRow(null)}
-        title="Close Maintenance"
+        title="Close Maintenance Record"
         subtitle={`${closeRow?.maintenanceType} — ${closeRow?.vehicle?.registrationNumber ?? ''}`}
         size="sm"
         footer={
@@ -406,21 +597,24 @@ export default function MaintenancePage() {
           {closeError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{closeError}</div>
           )}
-          <p className="text-sm text-slate-600">
-            Closing this record will mark it <strong>COMPLETED</strong> and restore the vehicle to <strong>AVAILABLE</strong>.
+
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Closing this record will mark it <strong>COMPLETED</strong> and restore the vehicle to <strong>AVAILABLE</strong> status.
           </p>
-          <MField label="Final Cost (₹)">
+
+          <MField label="Final Actual Cost (₹)">
             <input
               type="number" min="0" step="0.01"
               value={closeForm.cost}
               onChange={e => setCloseForm(f => ({ ...f, cost: e.target.value }))}
-              placeholder="e.g. 3500"
+              placeholder="0.00"
               className={inputCls()}
             />
           </MField>
+
           <MField label="Closing Notes">
             <textarea
-              rows={2}
+              rows={3}
               value={closeForm.notes}
               onChange={e => setCloseForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="Work completed, parts replaced, next service due…"
@@ -429,11 +623,21 @@ export default function MaintenancePage() {
           </MField>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteRow}
+        onClose={() => setDeleteRow(null)}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+        title="Delete Maintenance Record"
+        description={`Are you sure you want to delete maintenance record #${deleteRow?.id} (${deleteRow?.maintenanceType})? If active, the vehicle will be restored to Available.`}
+        confirmLabel="Delete Record"
+      />
     </div>
   )
 }
 
-// ── Small helpers ──────────────────────────────────────────────────────────────
 function MField({ label, children }) {
   return (
     <label className="block">

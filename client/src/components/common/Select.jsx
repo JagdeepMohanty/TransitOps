@@ -8,7 +8,7 @@ import { cn } from '@/utils'
  * @prop {string}   error       — error message
  * @prop {boolean}  required    — shows asterisk
  * @prop {string}   placeholder — first disabled option (default: 'Select an option')
- * @prop {Array}    options     — [{ value, label, disabled? }]
+ * @prop {Array}    options     — [{ value, label, disabled? }] or ['string1', 'string2']
  * @prop {node}     leftAddon   — icon inside left of select
  */
 export default function Select({
@@ -24,6 +24,21 @@ export default function Select({
   ...props
 }) {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
+
+  const safeOptions = Array.isArray(options) ? options : []
+  const normalizedOptions = safeOptions.map((opt) => {
+    if (typeof opt === 'string' || typeof opt === 'number') {
+      return { value: String(opt), label: String(opt), disabled: false }
+    }
+    if (opt && typeof opt === 'object') {
+      return {
+        value: opt.value ?? '',
+        label: opt.label ?? String(opt.value ?? ''),
+        disabled: !!opt.disabled,
+      }
+    }
+    return { value: '', label: '', disabled: false }
+  })
 
   return (
     <div className="flex flex-col gap-1">
@@ -61,7 +76,7 @@ export default function Select({
               {placeholder}
             </option>
           )}
-          {options.map(({ value, label: optLabel, disabled }) => (
+          {normalizedOptions.map(({ value, label: optLabel, disabled }) => (
             <option key={value} value={value} disabled={disabled}>
               {optLabel}
             </option>

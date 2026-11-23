@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Users } from 'lucide-react';
+import { ArrowLeft, Save, Users, AlertCircle } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import PageShell from '@components/layout/PageShell';
-import Button    from '@components/common/Button';
-import Input     from '@components/common/Input';
-import Select    from '@components/common/Select';
-import Spinner   from '@components/common/Spinner';
-import { driversApi } from '@api/drivers.api';
-import { LICENSE_CATEGORIES, DRIVER_STATUSES } from '@utils/constants';
+import PageShell from '@/components/layout/PageShell';
+import Button    from '@/components/common/Button';
+import Input     from '@/components/common/Input';
+import Select    from '@/components/common/Select';
+import Card      from '@/components/common/Card';
+import { driversApi } from '@/api/drivers.api';
+import { LICENSE_CATEGORIES, DRIVER_STATUSES } from '@/utils/constants';
 
 export default function EditDriverPage() {
   const { id }   = useParams();
@@ -40,6 +40,7 @@ export default function EditDriverPage() {
   function set(field, value) {
     setForm(p => ({ ...p, [field]: value }));
     if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
+    if (apiError) setApiError('');
   }
 
   function validate() {
@@ -51,7 +52,7 @@ export default function EditDriverPage() {
       e.licenseExpiryDate = 'License expiry must be a future date';
     }
     const score = Number(form.safetyScore);
-    if (isNaN(score) || score < 0 || score > 100) e.safetyScore = 'Safety score must be 0–100';
+    if (isNaN(score) || score < 0 || score > 100) e.safetyScore = 'Safety score must be between 0 and 100';
     return e;
   }
 
@@ -81,45 +82,62 @@ export default function EditDriverPage() {
 
   if (fetching) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Spinner size="lg" />
-      </div>
+      <PageShell title="Loading Driver…">
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
+          <span className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm mt-3">Loading driver profile…</p>
+        </div>
+      </PageShell>
     );
   }
 
   if (!form) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-sm text-red-500">
-        {apiError || 'Driver not found'}
-      </div>
+      <PageShell title="Driver Not Found">
+        <div className="p-8 text-center bg-white rounded-2xl border border-slate-200/80 shadow-card max-w-md mx-auto">
+          <AlertCircle size={32} className="text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-slate-700 font-medium">{apiError || 'Driver not found'}</p>
+          <Link to="/drivers" className="inline-block mt-4">
+            <Button size="sm" variant="secondary">Back to Drivers</Button>
+          </Link>
+        </div>
+      </PageShell>
     );
   }
 
   return (
     <PageShell
       title="Edit Driver"
-      subtitle={`Editing ${form.name}`}
+      subtitle={`Editing profile of ${form.name}`}
       actions={
         <Link to="/drivers">
-          <Button variant="secondary" icon={ArrowLeft}>Back to Drivers</Button>
+          <Button variant="secondary" size="sm" leftIcon={<ArrowLeft size={14} />}>
+            Back to Drivers
+          </Button>
         </Link>
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <div className="space-y-4">
+        <div className="space-y-5 max-w-4xl">
 
           {apiError && (
-            <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
               {apiError}
             </div>
           )}
 
-          <div className="bg-bg-card border border-border-card rounded-xl shadow-card">
-            <div className="flex items-center gap-2 px-6 py-4 border-b border-border">
-              <Users className="w-4 h-4 text-content-muted" />
-              <h2 className="text-sm font-semibold text-content-primary">Driver Information</h2>
+          <Card padding="none">
+            <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                <Users size={16} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Driver Credentials & Status</h2>
+                <p className="text-xs text-slate-500">Update license information, contact number, and duty status</p>
+              </div>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <Input
                 id="name"
                 label="Full Name"
@@ -172,18 +190,22 @@ export default function EditDriverPage() {
               />
               <Select
                 id="status"
-                label="Status"
+                label="Duty Status"
                 options={DRIVER_STATUSES}
                 value={form.status}
                 onChange={e => set('status', e.target.value)}
                 placeholder="Select status"
               />
             </div>
-          </div>
+          </Card>
 
-          <div className="flex items-center justify-end gap-3">
-            <Link to="/drivers"><Button variant="secondary">Cancel</Button></Link>
-            <Button type="submit" icon={Save} loading={loading}>Update Driver</Button>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Link to="/drivers">
+              <Button variant="secondary" type="button">Cancel</Button>
+            </Link>
+            <Button type="submit" leftIcon={<Save size={16} />} loading={loading}>
+              Update Driver
+            </Button>
           </div>
         </div>
       </form>

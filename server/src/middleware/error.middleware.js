@@ -8,9 +8,12 @@ const errorMiddleware = (err, req, res, next) => {
   const isDev = process.env.NODE_ENV === 'development';
 
   // Prisma connection / initialization errors — DB unreachable
-  if (err instanceof Prisma.PrismaClientInitializationError) {
+  if (
+    err instanceof Prisma.PrismaClientInitializationError ||
+    err instanceof Prisma.PrismaClientRustPanicError
+  ) {
     console.error('Database connection error:', err.message);
-    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+    return res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json({
       success: false,
       message: 'Database is currently unavailable',
       errors: [],
@@ -43,6 +46,13 @@ const errorMiddleware = (err, req, res, next) => {
         success: false,
         message: 'A record with this value already exists',
         errors: [{ field: err.meta?.target, message: 'Must be unique' }],
+      });
+    }
+    if (err.code === 'P2003') {
+      return res.status(HTTP_STATUS.CONFLICT).json({
+        success: false,
+        message: 'Cannot delete or modify record because it is referenced by existing related operational records (trips, maintenance, fuel logs, or expenses).',
+        errors: [{ field: err.meta?.field_name, message: 'Foreign key constraint violation' }],
       });
     }
     if (err.code === 'P2025') {
